@@ -1,10 +1,8 @@
-# Python 快取
+# Python
 __pycache__/
 *.py[cod]
 *.so
 .Python
-
-# 虛擬環境
 venv/
 env/
 ENV/
@@ -19,11 +17,13 @@ test.db
 .env
 *.env
 
-# 後端快取
+# 後端
 backend/__pycache__/
 backend/*.pyc
+backend/test.db
+backend/.env
 
-# 前端依賴與建置
+# 前端
 node_modules/
 client/node_modules/
 npm-debug.log*
@@ -33,11 +33,11 @@ client/dist/
 client/dist-ssr/
 *.local
 
-# 模擬器快取與虛擬環境（如果 simulator 有自己的 venv）
+# 模擬器
 simulator/__pycache__/
 simulator/venv/
 
-# IDE 設定檔
+# IDE 與系統檔案
 .vscode/
 .idea/
 *.swp
@@ -45,12 +45,14 @@ simulator/venv/
 *~
 .DS_Store
 
-# 測試與日誌
+# 測試檔案
 test_*.py
 *_test.py
+
+# 日誌
 *.log
 
-# 其他臨時檔案
+# 臨時檔案
 *.tmp
 *.bak
 *.pid
