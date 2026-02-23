@@ -46,7 +46,7 @@
                                   ▼ 資料存取 (ORM)
 ==============================================================
 📁 資料庫模型層 (SQLite)
-├─ ✅ device_data           ✅ sop_templates        ✅ sop_executions
+├─ ✅ device_data            ✅ sop_templates          ✅ sop_executions
 ├─ ✅ step_records
 ├─ ⏳ fixtures               ⏳ fixture_borrows       ⏳ issues
 ├─ ⏳ issue_actions          ⏳ thermal_records       ⏳ thermal_images
