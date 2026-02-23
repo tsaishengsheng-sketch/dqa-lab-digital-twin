@@ -2,15 +2,14 @@ import threading
 import time
 import serial
 from .models import SessionLocal, DeviceData
-from .models import DeviceData
 
 class SerialReader(threading.Thread):
-    def __init__(self, port, baudrate=9600, device_name="CHAMBER_01"):
+    def __init__(self, port, baudrate=9600, device_id="CHAMBER_01"):
         super().__init__()
         self.daemon = True
         self.port = port
         self.baudrate = baudrate
-        self.device_name = device_name
+        self.device_id = device_id
         self.running = True
         self.ser = None
 
@@ -43,22 +42,25 @@ class SerialReader(threading.Thread):
                     line = self.ser.readline().decode().strip()
                     if line:
                         data = self.parse_line(line)
-                        if 'TEMP' in data and 'HUMI' in data:
+                        # 根據模擬器輸出的格式，key 可能是 'TEMP' 和 'HUMI'
+                        temp_str = data.get('TEMP')
+                        humi_str = data.get('HUMI')
+                        if temp_str is not None and humi_str is not None:
                             record = DeviceData(
-                                device_name=self.device_name,
-                                temperature=float(data['TEMP']),
-                                humidity=float(data['HUMI'])
+                                device_id=self.device_id,
+                                temperature=float(temp_str),
+                                humidity=float(humi_str),
+                                raw_data=line
                             )
                             db.add(record)
                             db.commit()
-                            print(f"[{self.device_name}] 儲存: {data['TEMP']}°C, {data['HUMI']}%")
+                            print(f"[{self.device_id}] 儲存: {temp_str}°C, {humi_str}%")
                 except Exception as e:
                     print(f"讀取錯誤: {e}")
             time.sleep(0.1)
         db.close()
-        self.ser.close()
+        if self.ser and self.ser.is_open:
+            self.ser.close()
 
     def stop(self):
         self.running = False
-        if self.ser and self.ser.is_open:
-            self.ser.close()

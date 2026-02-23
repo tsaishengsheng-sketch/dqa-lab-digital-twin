@@ -17,9 +17,12 @@ class SopTemplate(Base):
     __tablename__ = "sop_templates"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    name: Mapped[str] = mapped_column(String, index=True)          # 模板名稱
+    sop_id: Mapped[str] = mapped_column(String, unique=True, index=True)
+    name: Mapped[str] = mapped_column(String)
+    test_type: Mapped[str] = mapped_column(String)
+    version: Mapped[str] = mapped_column(String)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    steps: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # 可存為 JSON 字串
+    steps_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
 
 # ---------- SOP 執行主表 ----------
@@ -27,7 +30,7 @@ class SopExecution(Base):
     __tablename__ = "sop_executions"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    sop_id: Mapped[str] = mapped_column(String, index=True)        # 對應的 SOP 模板 ID
+    sop_id: Mapped[str] = mapped_column(String, index=True)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
 
 # ---------- SOP 步驟記錄 ----------
@@ -35,11 +38,11 @@ class StepRecord(Base):
     __tablename__ = "step_records"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    execution_id: Mapped[int] = mapped_column(Integer, index=True)      # 外鍵
+    execution_id: Mapped[int] = mapped_column(Integer, index=True)
     step_id: Mapped[int] = mapped_column(Integer)
-    completed: Mapped[int] = mapped_column(Integer)                      # 0/1 表示布林值
-    parameters: Mapped[Optional[str]] = mapped_column(Text, nullable=True)   # JSON 字串
-    photos: Mapped[Optional[str]] = mapped_column(Text, nullable=True)        # JSON 字串
+    completed: Mapped[int] = mapped_column(Integer)
+    parameters: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    photos: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 # ---------- 裝置數據記錄（序列埠資料）----------
 class DeviceData(Base):
@@ -48,6 +51,6 @@ class DeviceData(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     device_id: Mapped[str] = mapped_column(String, index=True)          # 裝置識別碼
     timestamp: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
-    value: Mapped[float] = mapped_column(Float)                          # 讀取值
-    unit: Mapped[Optional[str]] = mapped_column(String, nullable=True)   # 單位
-    raw_data: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # 原始資料
+    temperature: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # 溫度
+    humidity: Mapped[Optional[float]] = mapped_column(Float, nullable=True)     # 濕度
+    raw_data: Mapped[Optional[str]] = mapped_column(Text, nullable=True)        # 原始資料

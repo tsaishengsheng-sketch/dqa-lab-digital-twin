@@ -1,0 +1,58 @@
+# Python 快取
+__pycache__/
+*.py[cod]
+*.so
+.Python
+
+# 虛擬環境
+venv/
+env/
+ENV/
+
+# 資料庫
+*.db
+*.sqlite3
+*.sqlite
+test.db
+
+# 環境變數
+.env
+*.env
+
+# 後端快取
+backend/__pycache__/
+backend/*.pyc
+
+# 前端依賴與建置
+node_modules/
+client/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+client/dist/
+client/dist-ssr/
+*.local
+
+# 模擬器快取與虛擬環境（如果 simulator 有自己的 venv）
+simulator/__pycache__/
+simulator/venv/
+
+# IDE 設定檔
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 測試與日誌
+test_*.py
+*_test.py
+*.log
+
+# 其他臨時檔案
+*.tmp
+*.bak
+*.pid
+*.seed
+*.pid.lock
