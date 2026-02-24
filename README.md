@@ -19,8 +19,7 @@ graph TD
         B[SOP Execution]
         C[...Future Modules]
     end
-    style A fill:#f9f,stroke:#333,stroke-width:2px
-    style B fill:#f9f,stroke:#333,stroke-width:2px  
+  
     subgraph "Backend Server (FastAPI)"
         D[API Routes]
         E[Service Layer]
