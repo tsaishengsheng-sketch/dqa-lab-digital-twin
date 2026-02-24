@@ -27,10 +27,13 @@ app.add_middleware(
 # 記錄請求來源的中介軟體 (維持原樣)
 @app.middleware("http")
 async def log_request_source(request: Request, call_next):
+    # 只針對特定路徑記錄日誌，避免日誌太雜
     if request.url.path in ["/", "/api/latest"]:
-        client_host = request.client.host
-        client_port = request.client.port
+        # 安全讀取 client，如果抓不到則顯示 unknown
+        client_host = request.client.host if request.client else "unknown"
+        client_port = request.client.port if request.client else 0
         print(f"🔍 收到來自 {client_host}:{client_port} 的請求: {request.method} {request.url.path}")
+    
     response = await call_next(request)
     return response
 
