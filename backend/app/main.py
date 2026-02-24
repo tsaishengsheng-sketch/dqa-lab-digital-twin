@@ -1,7 +1,7 @@
+import os  # 確保導入 os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import threading
-import os
 from dotenv import load_dotenv
 
 from .database import init_db
@@ -10,11 +10,12 @@ from .sop import router as sop_router
 from .sop_execution import router as execution_router
 from .models import SessionLocal, DeviceData
 
+# 載入 .env 檔案中的設定
 load_dotenv()
 
 app = FastAPI(title="DQA Lab Digital Twin API")
 
-# CORS 設定
+# CORS 設定 (維持原樣)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,7 +24,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 記錄請求來源的中介軟體（只記錄特定路徑）
+# 記錄請求來源的中介軟體 (維持原樣)
 @app.middleware("http")
 async def log_request_source(request: Request, call_next):
     if request.url.path in ["/", "/api/latest"]:
@@ -33,15 +34,22 @@ async def log_request_source(request: Request, call_next):
     response = await call_next(request)
     return response
 
-# 啟動 SerialReader 執行緒（請根據實際情況修改 port 和 device_id）
-serial_reader = SerialReader(port='/dev/ttys000', device_id="CHAMBER_01")
+# --- 修改點：動態取得 Port ---
+# os.getenv("SERIAL_PORTS") 會讀取 dev_start.sh 傳進來的 /dev/ttys007
+# 如果沒有環境變數，則預設回退到 '/dev/ttys000'，保證不崩潰
+target_port = os.getenv("SERIAL_PORTS", "/dev/ttys000")
+device_id = os.getenv("DEVICE_NAMES", "CHAMBER_01")
+
+print(f"📡 [Backend] SerialReader 正在嘗試連接: {target_port}")
+
+serial_reader = SerialReader(port=target_port, device_id=device_id)
 serial_reader.start()
 
-# 註冊路由
+# 註冊路由 (維持原樣)
 app.include_router(sop_router)
 app.include_router(execution_router)
 
-# ✅ 提供真實數據的 /api/latest 端點
+# ✅ 提供真實數據的 /api/latest 端點 (維持原樣)
 @app.get("/api/latest")
 @app.get("/api/latest/")
 async def latest_data():
@@ -57,7 +65,7 @@ async def latest_data():
         }
     return {"message": "No data yet", "data": []}
 
-# 應用關閉時停止 SerialReader
+# 應用關閉時停止 SerialReader (維持原樣)
 @app.on_event("shutdown")
 def shutdown_event():
     serial_reader.stop()
