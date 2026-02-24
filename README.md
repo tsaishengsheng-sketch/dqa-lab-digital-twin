@@ -14,12 +14,16 @@
 
 ```mermaid
 graph TD
+    %% 全域樣式設定，讓方框更有質感
+    classDef default fill:#2d333b,stroke:#adbac7,color:#adbac7,stroke-width:1px;
+    classDef highlight fill:#347d39,stroke:#44bc51,color:#fff,stroke-width:2px;
+
     subgraph "Client Side (React + Vite)"
         A[Dashboard]
         B[SOP Execution]
         C[...Future Modules]
     end
-  
+
     subgraph "Backend Server (FastAPI)"
         D[API Routes]
         E[Service Layer]
@@ -43,6 +47,11 @@ graph TD
     E --> G
     G <--> H
     H <--> I & J
+
+    %% 套用樣式：將已完成的部分稍微加亮，其餘保持低調灰色
+    class A,B,D,E,F,G,H,I highlight;
+
+
 ```
 
 ## 🛠️ 快速啟動
