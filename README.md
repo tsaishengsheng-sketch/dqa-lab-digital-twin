@@ -8,6 +8,43 @@
 - **現代前端**: 使用 Vite + React/Vue 呈現即時監控面板。
 - **自動化開發環境**: 透過 `Makefile` 一鍵啟動所有服務（模擬器、API、前端、虛擬串口）。
 
+## 🏗️ 系統架構
+
+本專案採用分層架構設計，確保硬體通訊與業務邏輯解耦。
+
+```mermaid
+graph TD
+    subgraph "Client Side (React + Vite)"
+        A[Dashboard]
+        B[SOP Execution]
+        C[...Future Modules]
+    end
+
+    subgraph "Backend Server (FastAPI)"
+        D[API Routes]
+        E[Service Layer]
+        F[(SQLite Database)]
+        D --> E
+        E --> F
+    end
+
+    subgraph "Hardware Communication"
+        G[SerialReader Service]
+        H{socat Virtual Bridge}
+    end
+
+    subgraph "Device Simulation"
+        I[Kson Chamber Sim]
+        J[...Future Simulators]
+    end
+
+    %% 連線關係
+    A & B --> D
+    E --> G
+    G <--> H
+    H <--> I & J
+    ```
+    
 ## 🛠️ 快速啟動
 此專案已封裝自動化腳本。在開始之前，請確保環境已安裝 `socat`。(用於虛擬串口模擬）)
 
