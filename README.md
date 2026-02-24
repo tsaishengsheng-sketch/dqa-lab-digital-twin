@@ -26,6 +26,7 @@ cp .env.example .env
 # 3. 一鍵啟動開發服務:使用 Makefile 指令自動建立虛擬串口、啟動後端與前端：
 
 make dev
+
 # 4.停止與清理 結束開發後，按一下 Ctrl + C 即可停止。若需清理殘留程序，請執行:
 
 make clean
