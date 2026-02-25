@@ -57,3 +57,4 @@ test_*.py
 
 # AI 聊天開發紀錄 (僅限本地參考)
 gemini_AI_CHAT_HISTORY.md
+deepseek_CHAT_HISTORY
