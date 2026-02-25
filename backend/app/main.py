@@ -1,75 +1,103 @@
-import os  # 確保導入 os
-from fastapi import FastAPI, Request
+import os
+import asyncio
+import datetime
+import random
+import json
+from fastapi import FastAPI, HTTPException, Body, Request
 from fastapi.middleware.cors import CORSMiddleware
-import threading
-from dotenv import load_dotenv
-
-from .database import init_db
-from .serial_reader import SerialReader
+from .serial_reader import AsyncSerialReader
 from .sop import router as sop_router
-from .sop_execution import router as execution_router
-from .models import SessionLocal, DeviceData
+from .models import SessionLocal, SopTemplate
 
-# 載入 .env 檔案中的設定
-load_dotenv()
+app = FastAPI(title="KSON AICM Digital Twin Server")
+app.state.AICM_CACHE = {} 
+background_tasks = set()
 
-app = FastAPI(title="DQA Lab Digital Twin API")
-
-# CORS 設定 (維持原樣)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 記錄請求來源的中介軟體 (維持原樣)
-@app.middleware("http")
-async def log_request_source(request: Request, call_next):
-    # 只針對特定路徑記錄日誌，避免日誌太雜
-    if request.url.path in ["/", "/api/latest"]:
-        # 安全讀取 client，如果抓不到則顯示 unknown
-        client_host = request.client.host if request.client else "unknown"
-        client_port = request.client.port if request.client else 0
-        print(f"🔍 收到來自 {client_host}:{client_port} 的請求: {request.method} {request.url.path}")
-    
-    response = await call_next(request)
-    return response
+# --- 核心控制接口 ---
 
-# --- 修改點：動態取得 Port ---
-# os.getenv("SERIAL_PORTS") 會讀取 dev_start.sh 傳進來的 /dev/ttys007
-# 如果沒有環境變數，則預設回退到 '/dev/ttys000'，保證不崩潰
-target_port = os.getenv("SERIAL_PORTS", "/dev/ttys000")
-device_id = os.getenv("DEVICE_NAMES", "CHAMBER_01")
+@app.post("/api/stop/emergency")
+async def emergency_stop():
+    """🚨 緊急停止：立即歸零，解除所有鎖定"""
+    cache = app.state.AICM_CACHE
+    for device_id in cache:
+        cache[device_id]["status"] = "IDLE"
+        cache[device_id]["running_sop_id"] = None
+        cache[device_id]["running_sop_name"] = "None"
+    print("\n🚨 [SYSTEM] EMERGENCY STOP EXECUTED.")
+    return {"status": "success"}
 
-print(f"📡 [Backend] SerialReader 正在嘗試連接: {target_port}")
+@app.post("/api/stop/pause")
+async def pause_test():
+    """⏸️ 暫停切換：保留數值但解開前端啟動按鈕鎖定"""
+    cache = app.state.AICM_CACHE
+    for device_id in cache:
+        cache[device_id]["status"] = "PAUSED"
+    print("\n⏸️ [SYSTEM] TEST PAUSED. WAITING FOR NEW COMMAND.")
+    return {"status": "success"}
 
-serial_reader = SerialReader(port=target_port, device_id=device_id)
-serial_reader.start()
+@app.post("/api/stop/normal")
+async def normal_stop():
+    """⏹️ 正常停止：標記結束，模擬器會開始引導溫度回歸室溫"""
+    cache = app.state.AICM_CACHE
+    for device_id in cache:
+        cache[device_id]["status"] = "FINISHING"
+        cache[device_id]["running_sop_id"] = None
+        cache[device_id]["running_sop_name"] = "Finishing..."
+    print("\n⏹️ [SYSTEM] NORMAL STOP. RETURNING TO AMBIENT.")
+    return {"status": "success"}
 
-# 註冊路由 (維持原樣)
-app.include_router(sop_router)
-app.include_router(execution_router)
-
-# ✅ 提供真實數據的 /api/latest 端點 (維持原樣)
 @app.get("/api/latest")
-@app.get("/api/latest/")
-async def latest_data():
-    db = SessionLocal()
-    latest = db.query(DeviceData).order_by(DeviceData.timestamp.desc()).first()
-    db.close()
-    if latest:
-        return {
-            "device_id": latest.device_id,
-            "temperature": latest.temperature,
-            "humidity": latest.humidity,
-            "timestamp": latest.timestamp.isoformat()
-        }
-    return {"message": "No data yet", "data": []}
+async def get_latest():
+    cache = app.state.AICM_CACHE
+    if not cache:
+        return {"status": "IDLE", "temperature": 25.0, "humidity": 55.0, "running_sop_name": "None", "timestamp": "--:--:--"}
+    return list(cache.values())[0]
 
-# 應用關閉時停止 SerialReader (維持原樣)
-@app.on_event("shutdown")
-def shutdown_event():
-    serial_reader.stop()
-    print("SerialReader 已停止")
+# --- 物理模擬引擎 ---
+
+async def data_simulator():
+    while True:
+        cache = app.state.AICM_CACHE
+        db = SessionLocal()
+        try:
+            for device_id in cache:
+                item = cache[device_id]
+                status = item.get("status")
+                
+                # 運作邏輯
+                if status == "RUNNING" and item.get("running_sop_id"):
+                    sop = db.query(SopTemplate).filter(SopTemplate.sop_id == item["running_sop_id"]).first()
+                    if sop:
+                        target_temp = 85.0 if "高溫" in sop.name else -40.0 if "低溫" in sop.name else 25.0
+                        diff = target_temp - item["temperature"]
+                        item["temperature"] += (0.8 if diff > 0 else -0.8) + random.uniform(-0.1, 0.1) if abs(diff) > 0.1 else random.uniform(-0.02, 0.02)
+                        print(f"\r📊 [RUN] {sop.name} | 目標: {target_temp}°C | 當前: {item['temperature']:.2f}°C", end="")
+                
+                elif status == "PAUSED":
+                    print(f"\r⏸️ [PAUSE] 保持在 {item['temperature']:.2f}°C", end="")
+                
+                else: # IDLE 或 FINISHING
+                    diff = 25.0 - item["temperature"]
+                    if abs(diff) > 0.5:
+                        item["temperature"] += (0.3 if diff > 0 else -0.3)
+                    print(f"\r💤 [IDLE/FINISH] 回歸室溫中: {item['temperature']:.2f}°C", end="")
+
+                item["timestamp"] = datetime.datetime.now().strftime("%H:%M:%S")
+            await asyncio.sleep(1)
+        finally:
+            db.close()
+
+@app.on_event("startup")
+async def startup_event():
+    # 串口與模擬器啟動
+    sim_task = asyncio.create_task(data_simulator())
+    background_tasks.add(sim_task)
+
+app.include_router(sop_router, prefix="/api/sop")
