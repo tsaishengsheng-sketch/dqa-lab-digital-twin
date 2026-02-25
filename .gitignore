@@ -54,8 +54,3 @@ test_*.py
 *_test.py
 *.log
 *.info
-
-#排除所有 AI 聊天開發紀錄檔案
-docs/*_CHAT_HISTORY.md
-
-.continue/
