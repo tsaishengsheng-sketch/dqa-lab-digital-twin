@@ -54,3 +54,6 @@ test_*.py
 *_test.py
 *.log
 *.info
+
+# AI 聊天開發紀錄 (僅限本地參考)
+gemini_AI_CHAT_HISTORY.md
