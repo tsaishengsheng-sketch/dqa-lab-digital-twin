@@ -55,5 +55,5 @@ test_*.py
 *.log
 *.info
 
-#排除所有 AI 聊天開發紀錄檔案 (包含 gemini 或 deepseek 開頭的)
+#排除所有 AI 聊天開發紀錄檔案
 docs/*_CHAT_HISTORY.md
