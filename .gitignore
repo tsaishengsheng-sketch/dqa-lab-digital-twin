@@ -1,3 +1,6 @@
+# Continue 插件相關 (務必加入)
+.continue/
+
 # Python 相關
 __pycache__/
 *.py[cod]
@@ -12,7 +15,7 @@ ENV/
 *.sqlite3
 *.sqlite
 
-# 環境變數 (最重要：保護敏感資訊)
+# 環境變數 (保護敏感資訊)
 .env
 *.env
 .env.local
