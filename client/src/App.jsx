@@ -5,21 +5,22 @@ import SOPPage from './SOPPage';
 function App() {
   return (
     <BrowserRouter>
-      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-        {/* 導航列 */}
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: '#0d1117' }}>
+        {/* 全域唯一的導航列 */}
         <nav style={{ 
           padding: '1rem 2rem', 
-          backgroundColor: '#1e293b', 
+          backgroundColor: '#161b22', 
           display: 'flex', 
           gap: '2rem',
-          borderBottom: '1px solid #334155'
+          borderBottom: '1px solid #30363d',
+          zIndex: 1000
         }}>
           <Link to="/" style={{ color: 'white', textDecoration: 'none', fontWeight: 'bold' }}>儀表板</Link>
           <Link to="/sop" style={{ color: 'white', textDecoration: 'none', fontWeight: 'bold' }}>SOP 執行</Link>
         </nav>
 
-        {/* 主要內容：不要給 display: flex，直接讓內容自適應寬度 */}
-        <main style={{ width: '100%', flex: 1 }}>
+        {/* 主要內容區 */}
+        <main style={{ width: '100%', flex: 1, overflow: 'hidden' }}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/sop" element={<SOPPage />} />
