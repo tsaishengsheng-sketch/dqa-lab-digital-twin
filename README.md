@@ -51,6 +51,35 @@ graph TD
 
 ```
 
+
+## 📂 專案目錄結構
+
+本專案採用解耦架構，實體檔案與架構圖模組對應如下：
+
+```text
+.
+├── backend                 # 【Backend Engine】FastAPI 核心
+│   ├── app
+│   │   ├── main.py         # 狀態機路由 (State Machine) 與物理模擬邏輯
+│   │   ├── models.py       # SQLite 資料結構定義 (SQLAlchemy)
+│   │   └── serial_reader.py# 【Hardware Layer】異步串口監聽服務 (Async)
+│   ├── init_db.py          # 資料庫初始化工具
+│   └── test.db             # 實體 SQLite 資料庫 (存放歷史數據與 SOP)
+├── client                  # 【Client Side】React 前端介面
+│   ├── src
+│   │   ├── SOPPage.jsx     # 【SOP Control Panel】三鍵控制與程序執行
+│   │   ├── Dashboard.jsx   # 【Dashboard / Chart】數據儀表板與趨勢圖
+│   │   └── main.jsx        # 前端進入點
+│   └── vite.config.js      # Vite 配置環境
+├── simulator               # 【Twin Simulation】硬體模擬層
+│   └── main.py             # 慶聲溫箱 (Kson) 物理行為模擬腳本
+├── docs                    # 專案文件管理
+│   └── architecture.md     # 詳細開發進度與未來架構藍圖
+├── Makefile                # 【socat Bridge】一鍵自動化啟動腳本
+└── README.md               # 專案首頁說明文件
+
+```
+
 ## 🛠️ 快速啟動
 
 ```bash
