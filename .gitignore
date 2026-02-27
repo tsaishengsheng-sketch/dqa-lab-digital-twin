@@ -57,3 +57,7 @@ test_*.py
 *_test.py
 *.log
 *.info
+
+# 開發筆記類與上下文檔案
+docs/notes/
+docs/ai_context.md
