@@ -1,13 +1,10 @@
-import os
 import asyncio
 import datetime
 import random
-import json
-from fastapi import FastAPI, HTTPException, Body, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .serial_reader import AsyncSerialReader
 from .sop import router as sop_router
-from .models import SessionLocal, SopTemplate, DeviceData 
+from .models import SessionLocal, DeviceData 
 
 app = FastAPI(title="KSON AICM Digital Twin Server")
 app.state.AICM_CACHE = {} 
@@ -28,7 +25,7 @@ async def emergency_stop():
     """🚨 緊急停止：中斷所有輸出，並提示使用者後續動作"""
     cache = app.state.AICM_CACHE
     for device_id in cache:
-        cache[device_id]["status"] = "EMERGENCY" # 改為專門的緊急狀態
+        cache[device_id]["status"] = "EMERGENCY"
         cache[device_id]["running_sop_id"] = None
         cache[device_id]["running_sop_name"] = "🚨 緊急停止中 - 待確認安全"
     
@@ -66,10 +63,8 @@ async def get_latest():
             "description": "等待模擬器啟動...",
             "timestamp": "--:--:--"
         }
-    # 回傳第一台設備，並加入 description 欄位供 UI 顯示
-    data = list(cache.values())[0]
+    data = next(iter(cache.values()))
     
-    # 動態產生測試說明文案
     if data["status"] == "RUNNING":
         data["description"] = f"正在執行：{data.get('running_sop_name')}。系統正模擬真實物理升降溫斜率。"
     elif data["status"] == "EMERGENCY":
@@ -88,27 +83,22 @@ async def data_simulator():
         cache = app.state.AICM_CACHE
         db = SessionLocal()
         try:
-            for device_id in cache:
-                item = cache[device_id]
-                status = item.get("status")
+            for device_id, item in cache.items():
+                status = item["status"]
                 
                 if status == "RUNNING":
-                    # 模擬升溫邏輯... (略)
                     target_temp = 85.0 if "高溫" in item.get("running_sop_name", "") else -40.0
                     diff = target_temp - item["temperature"]
                     item["temperature"] += (0.8 if diff > 0 else -0.8) + random.uniform(-0.1, 0.1)
                 
                 elif status == "FINISHING":
-                    # 收尾回歸 25 度
                     diff = 25.0 - item["temperature"]
                     if abs(diff) > 0.5:
                         item["temperature"] += (0.4 if diff > 0 else -0.4)
                 
                 elif status == "EMERGENCY":
-                    # 緊急停止時，溫度保持不變 (或根據真實物理緩慢散熱)
                     item["temperature"] += random.uniform(-0.05, 0.05)
 
-                # 數據存檔 (省略重複邏輯，與上一版本相同)
                 if status in ["RUNNING", "FINISHING", "PAUSED", "EMERGENCY"]:
                     new_record = DeviceData(
                         device_id=device_id,

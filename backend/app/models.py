@@ -49,7 +49,8 @@ class DeviceData(Base):
     __tablename__ = "device_data"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    device_id: Mapped[str] = mapped_column(String, index=True)          # 裝置識別碼
+    device_id: Mapped[str] = mapped_column(String, index=True)        
+    # 裝置識別碼
     timestamp: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
     temperature: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # 溫度
     humidity: Mapped[Optional[float]] = mapped_column(Float, nullable=True)     # 濕度
