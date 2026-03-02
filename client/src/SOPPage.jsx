@@ -3,24 +3,8 @@ import axios from 'axios';
 import './SOPPage.css';
 
 const SOPPage = () => {
-    // SOP 列表資料
-    const [testMethods] = useState([
-        {
-            "sop_id": "low_temp_power_on_off",
-            "name": "低溫電源開關測試",
-            "description": "設定低溫 -40°C，48 小時，電源循環 5 分鐘/2 分鐘"
-        },
-        {
-            "sop_id": "high_temp_operation",
-            "name": "高溫操作測試",
-            "description": "設定高溫 85°C，濕度 40%，16 小時"
-        },
-        {
-            "sop_id": "temp_cycle",
-            "name": "溫度循環測試",
-            "description": "設定低溫 -40°C，高溫 85°C，5 個循環"
-        }
-    ]);
+    // SOP 列表從後端動態獲取
+    const [testMethods, setTestMethods] = useState([]);
 
     // 即時狀態 State
     const [data, setData] = useState({
@@ -31,6 +15,21 @@ const SOPPage = () => {
         description: '等待連線...',
         timestamp: '--:--:--'
     });
+
+    // 啟動時獲取 SOP 列表
+    useEffect(() => {
+        const fetchSOPs = async () => {
+            try {
+                const res = await axios.get('http://localhost:8000/api/sop/');
+                setTestMethods(res.data);
+                console.log(`✅ Loaded ${res.data.length} SOPs from backend`);
+            } catch (err) {
+                console.error("Failed to fetch SOPs:", err);
+            }
+        };
+        
+        fetchSOPs();
+    }, []);
 
     // 每秒輪詢後端 API
     useEffect(() => {
@@ -52,9 +51,26 @@ const SOPPage = () => {
 
     const startSop = async (sop) => {
         try {
+            // 根据 sop_id 查找对应的 standard_id
+            let standard_id = "IEC60068_CYCLE"; // 默认值
+            
+            // 如果 sop_id 在 standards 里能找到，就用对应的 standard_id
+            const standardMap = {
+                "temp_cycle_test": "IEC60068_CYCLE",
+                "en50155_high_temp": "EN50155_HIGH",
+                "en50155_low_temp": "EN50155_LOW",
+                "damp_heat_cyclic_test": "IEC60068_DAMP",
+                "low_temp_power_on_off": "IEC60068_CYCLE",
+                "high_temp_operation": "IEC60068_CYCLE",
+                "temp_cycle": "IEC60068_CYCLE"
+            };
+            
+            standard_id = standardMap[sop.sop_id] || standard_id;
+            
             await axios.post('http://localhost:8000/api/sop/start', {
                 sop_id: sop.sop_id,
-                device_id: "KSON_CH01"
+                device_id: "KSON_CH01",
+                standard_id: standard_id
             });
         } catch (err) {
             alert("啟動程序失敗");
@@ -116,20 +132,24 @@ const SOPPage = () => {
 
                     {/* SOP 列表區 */}
                     <div className="sop-list-container">
-                        <h3 className="list-label">可用測試程序 (SOP List)</h3>
-                        {testMethods.map((sop) => (
-                            <div key={sop.sop_id} className="sop-item-card">
-                                <h3 className="sop-name">{sop.name}</h3>
-                                <p className="sop-desc">{sop.description}</p>
-                                <button 
-                                    className="btn-launch"
-                                    onClick={() => startSop(sop)}
-                                    disabled={data.status === 'RUNNING'}
-                                >
-                                    {data.status === 'RUNNING' ? '程序執行中' : '啟動測試程序'}
-                                </button>
-                            </div>
-                        ))}
+                        <h3 className="list-label">可用測試程序 (SOP List) - {testMethods.length} 個</h3>
+                        {testMethods.length > 0 ? (
+                            testMethods.map((sop) => (
+                                <div key={sop.sop_id} className="sop-item-card">
+                                    <h3 className="sop-name">{sop.name}</h3>
+                                    <p className="sop-desc">{sop.test_type}</p>
+                                    <button 
+                                        className="btn-launch"
+                                        onClick={() => startSop(sop)}
+                                        disabled={data.status === 'RUNNING'}
+                                    >
+                                        {data.status === 'RUNNING' ? '程序執行中' : '啟動測試程序'}
+                                    </button>
+                                </div>
+                            ))
+                        ) : (
+                            <p style={{ color: '#8b949e' }}>正在加載測試程序...</p>
+                        )}
                     </div>
                 </div>
             </main>
