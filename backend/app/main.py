@@ -10,6 +10,7 @@ from .standards import get_ramp_rate
 app = FastAPI(title="KSON AICM Digital Twin Server")
 app.state.AICM_CACHE = {} 
 background_tasks = set()
+app.include_router(sop_router, prefix="/api/sop", tags=["sop"])
 
 # 修正重複參數問題
 app.add_middleware(
@@ -180,4 +181,3 @@ async def startup_event():
     background_tasks.add(sim_task)
     print("✅ System initialized")
 
-    app.include_router(sop_router, prefix="/api/sop", tags=["sop"])
