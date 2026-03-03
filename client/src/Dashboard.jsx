@@ -77,7 +77,9 @@ const Dashboard = () => {
           margin: "5px 0 0 0",
           fontSize: "1.5rem"
         }}>
-          {data.status === "RUNNING" ? data.running_sop_name : "STANDBY (IDLE)"}
+          {["RUNNING", "FINISHING", "PAUSED", "EMERGENCY"].includes(data.status) 
+          ? data.running_sop_name 
+          : "STANDBY (IDLE)"}
         </h2>
       </div>
 
