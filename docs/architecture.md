@@ -14,8 +14,10 @@
     * 實作狀態脈衝動畫 (Pulse) 與響應式高度計算。
     * **✅ 動態 SOP 列表**: 從後端動態獲取測試程序，支援環境測試標準。
     * **✅ 移除硬編碼 standardMap**: `standard_id` 直接從後端 API 取得，前後端不再需要手動同步。
+    * **✅ 上架安全確認機制**: 啟動測試前強制確認四項注意事項，全部勾選後按鈕才會解鎖。
 * **✅ 響應式佈局 (Responsive UI)**: 自動適應視窗縮放，確保控制按鈕與狀態欄不跑位。
 * **✅ 狀態同步修正**: Dashboard 與 SOPPage 現在對 `RUNNING`、`FINISHING`、`PAUSED`、`EMERGENCY` 四種狀態都能正確顯示任務名稱。
+* **⏳ SOP 步驟執行追蹤**: 啟動後顯示步驟清單，逐步勾選完成。
 * **⏳ 治具管理 (Fixtures)**: 治具清單、借用狀態追蹤。
 * **⏳ 異常看板 (Issues)**: 數據偏差告警、設備 Error Code 紀錄。
 * **⏳ Thermal 工作流 (Thermal)**: 熱測試專用自動化流程。
@@ -32,16 +34,16 @@
 
 * **✅ `/api/latest`**: 每秒輪詢之核心介面，獲取最新溫濕度與模擬器狀態。
 * **✅ `/api/sop/`**: 動態獲取 SOP 列表（優先從環境測試標準讀取），回傳包含 `standard_id` 欄位。
-* **✅ `/api/sop/start`**: 觸發指定 SOP 執行，進入物理模擬狀態。
+* **✅ `/api/sop/start`**: 觸發指定 SOP 執行，採用 Pydantic `StartSopRequest` 強型別驗證。
 * **✅ `/api/stop/emergency`**: 強制系統歸零，解除所有運行鎖定（緊急制動）。
 * **✅ `/api/stop/pause`**: 暫停模擬並解鎖前端按鈕，允許臨時切換測試項目。
 * **✅ `/api/stop/normal`**: 進入收尾狀態，引導溫度回歸安全室溫。
 * **✅ 靜態日誌優化**: 實作 `--no-access-log` 機制，過濾重複輪詢，提升終端機開發讀取性。
 * **✅ Router 註冊修正**: `include_router` 移至應用層級，修復路由可能無法正確註冊的問題。
+* **✅ Pydantic 輸入驗證**: `/api/sop/start` 改用強型別 `StartSopRequest` 取代 `Dict[str, Any]`。
 * **⏳ `/api/fixtures`**: 治具 CRUD 介面。
-* **⏳ `/api/reports`**: 自動化報告生成引擎。
+* **⏳ `/api/reports`**: 自動化報告生成引擎（CSV 導出）。
 * **⏳ `/api/auth`**: 登入驗證與 JWT 授權。
-* **⏳ Pydantic 輸入驗證**: `/api/sop/start` 改用強型別 BaseModel 取代 `Dict[str, Any]`。
 
 ---
 
@@ -112,15 +114,17 @@
 ```
 環境測試標準 (standards.py)
         ↓
-SOP 管理層 (sop.py)        ← 回傳 standard_id 給前端
+SOP 管理層 (sop.py)              ← 回傳 standard_id 給前端
         ↓
-前端動態列表 (SOPPage.jsx) ← 直接使用 standard_id，不再查表
+前端安全確認 (SOPPage.jsx)       ← 四項注意事項全勾才解鎖
         ↓
-使用者選擇 SOP
+前端動態列表 (SOPPage.jsx)       ← 直接使用 standard_id，不再查表
         ↓
-啟動 SOP (/api/sop/start)
+使用者選擇 SOP 並啟動
         ↓
-物理模擬引擎 (main.py)     ← 從 get_standard() 讀取目標溫度
+Pydantic 驗證 (StartSopRequest)  ← 強型別檢查，錯誤立即回傳 422
+        ↓
+物理模擬引擎 (main.py)           ← 從 get_standard() 讀取目標溫度
         ↓ (受標準速率限制)
 溫度/濕度變化
         ↓
@@ -138,16 +142,18 @@ SOP 管理層 (sop.py)        ← 回傳 standard_id 給前端
 | 前端路由 | ✅ 完成 | App.jsx 統一管理 |
 | 儀表板 | ✅ 完成 | 實時溫濕度顯示，四狀態同步修正 |
 | SOP 執行 | ✅ 完成 | 動態列表 + 標準整合 + 移除硬編碼 |
+| 上架安全確認 | ✅ 完成 | 四項注意事項全勾才能啟動 |
 | 環境測試標準 | ✅ 完成 | EN50155, IEC60068 |
 | 物理模擬 | ✅ 完成 | 標準化升降溫，目標溫度從標準讀取 |
 | 串口通訊 | ✅ 完成 | socat 虛擬環境 |
 | 數據庫 | ✅ 完成 | SQLite + SQLAlchemy |
 | Router 註冊 | ✅ 修正 | include_router 移至應用層級 |
+| Pydantic 驗證 | ✅ 完成 | StartSopRequest 強型別輸入 |
+| SOP 步驟追蹤 | ⏳ 規劃中 | 啟動後顯示步驟清單 |
+| 測試報告 CSV | ⏳ 規劃中 | 測試完成後導出數據 |
 | 認證系統 | ⏳ 規劃中 | JWT 認證 |
 | 權限管理 | ⏳ 規劃中 | 用戶角色 |
-| 報告生成 | ⏳ 規劃中 | CSV 導出 |
 | 監控告警 | ⏳ 規劃中 | Prometheus |
-| Pydantic 驗證 | ⏳ 規劃中 | /api/sop/start 強型別輸入 |
 
 ---
 
@@ -159,3 +165,5 @@ SOP 管理層 (sop.py)        ← 回傳 standard_id 給前端
 - **fix**: Dashboard 修正 `FINISHING`/`PAUSED`/`EMERGENCY` 狀態下任務名稱不顯示的問題 (`Dashboard.jsx`)
 - **feat**: `SopResponse` 新增 `standard_id` 欄位，後端直接回傳給前端 (`sop.py`)
 - **fix**: 移除前端硬編碼 `standardMap`，改用後端回傳的 `standard_id` (`SOPPage.jsx`)
+- **feat**: 新增 Pydantic `StartSopRequest` 強型別輸入驗證 (`sop.py`)
+- **feat**: 新增上架驗證注意事項確認框，四項全勾才能啟動測試 (`SOPPage.jsx`)
