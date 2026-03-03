@@ -49,33 +49,18 @@ const SOPPage = () => {
         await axios.post(`http://localhost:8000/api/stop/${type}`);
     };
 
+    // ✅ 直接用后端传过来的 standard_id
     const startSop = async (sop) => {
         try {
-            // 根据 sop_id 查找对应的 standard_id
-            let standard_id = "IEC60068_CYCLE"; // 默认值
-            
-            // 如果 sop_id 在 standards 里能找到，就用对应的 standard_id
-            const standardMap = {
-                "temp_cycle_test": "IEC60068_CYCLE",
-                "en50155_high_temp": "EN50155_HIGH",
-                "en50155_low_temp": "EN50155_LOW",
-                "damp_heat_cyclic_test": "IEC60068_DAMP",
-                "low_temp_power_on_off": "IEC60068_CYCLE",
-                "high_temp_operation": "IEC60068_CYCLE",
-                "temp_cycle": "IEC60068_CYCLE"
-            };
-            
-            standard_id = standardMap[sop.sop_id] || standard_id;
-            
-            await axios.post('http://localhost:8000/api/sop/start', {
-                sop_id: sop.sop_id,
-                device_id: "KSON_CH01",
-                standard_id: standard_id
-            });
-        } catch (err) {
-            alert("啟動程序失敗");
-        }
-    };
+        await axios.post('http://localhost:8000/api/sop/start', {
+            sop_id: sop.sop_id,
+            device_id: "KSON_CH01",
+            standard_id: sop.standard_id   // ← 直接用，不用查表
+        });
+    } catch (err) {
+        alert("啟動程序失敗");
+    }
+};
 
     return (
         <div className="sop-page-layout">

@@ -9,6 +9,7 @@ router = APIRouter()
 
 class SopResponse(BaseModel):
     sop_id: str
+    standard_id: str
     name: str
     test_type: str
     version: str
@@ -26,6 +27,7 @@ def list_sops():
     for standard_id, standard_data in STANDARDS_AND_SOPS.items():
         steps = standard_data.get("steps", [])
         sop = SopResponse(
+            standard_id=standard_id,
             sop_id=standard_data.get("sop_id", ""),
             name=standard_data.get("name", ""),
             test_type=standard_data.get("test_type", ""),
@@ -43,6 +45,7 @@ def list_sops():
             # 避免重複
             if not any(sop.sop_id == s.sop_id for sop in sops):
                 sop = SopResponse(
+                    standard_id=getattr(s, 'standard_id', ""),
                     sop_id=s.sop_id,
                     name=s.name,
                     test_type=s.test_type,
