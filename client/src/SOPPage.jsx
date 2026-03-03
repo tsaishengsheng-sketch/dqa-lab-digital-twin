@@ -2,7 +2,24 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "./SOPPage.css";
 
+// 常量放在組件外面
+const SAFETY_CHECKS = [
+  "測試孔是否用塑膠塞及抹布將兩邊塞緊，以免水氣跑出。",
+  "線材類治具等移至上方後再塞，以免水氣往利用線材類治具流至設備上造成毀損。",
+  "抹布末端勿留至 Sample 上，以免低溫轉高溫時水氣流至 Sample 上導致燒燬。",
+  "電源頭請放在治具、線材類上或懸空在鐵架下方，勿放在鐵架上。",
+];
+
 const SOPPage = () => {
+  // 注意事項勾選狀態
+  const [safetyChecked, setSafetyChecked] = useState([
+    false,
+    false,
+    false,
+    false,
+  ]);
+  const allChecked = safetyChecked.every(Boolean);
+
   // SOP 列表從後端動態獲取
   const [testMethods, setTestMethods] = useState([]);
 
@@ -27,7 +44,6 @@ const SOPPage = () => {
         console.error("Failed to fetch SOPs:", err);
       }
     };
-
     fetchSOPs();
   }, []);
 
@@ -49,13 +65,13 @@ const SOPPage = () => {
     await axios.post(`http://localhost:8000/api/stop/${type}`);
   };
 
-  // ✅ 直接用后端传过来的 standard_id
+  // 啟動 SOP
   const startSop = async (sop) => {
     try {
       await axios.post("http://localhost:8000/api/sop/start", {
         sop_id: sop.sop_id,
         device_id: "KSON_CH01",
-        standard_id: sop.standard_id, // ← 直接用，不用查表
+        standard_id: sop.standard_id,
       });
     } catch (err) {
       alert("啟動程序失敗");
@@ -113,7 +129,6 @@ const SOPPage = () => {
             <p className="task-desc">
               當前詳情: {data.description || "等待數據載入..."}
             </p>
-
             <div className="btn-group-row">
               <button
                 className="ctrl-btn amber"
@@ -136,6 +151,65 @@ const SOPPage = () => {
             </div>
           </section>
 
+          {/* 上架驗證注意事項 */}
+          <section
+            className="operation-box"
+            style={{ borderLeft: "4px solid #f0a500" }}
+          >
+            <div className="box-header">
+              <span>⚠️</span>
+              <h2>上架驗證注意事項</h2>
+            </div>
+            <p
+              style={{
+                color: "#8b949e",
+                fontSize: "13px",
+                marginBottom: "12px",
+              }}
+            >
+              啟動測試前，請確認以下所有項目：
+            </p>
+            {SAFETY_CHECKS.map((item, index) => (
+              <label
+                key={index}
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "10px",
+                  marginBottom: "10px",
+                  cursor: "pointer",
+                  color: safetyChecked[index] ? "#57ab5a" : "#cdd9e5",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={safetyChecked[index]}
+                  onChange={() => {
+                    const updated = [...safetyChecked];
+                    updated[index] = !updated[index];
+                    setSafetyChecked(updated);
+                  }}
+                  style={{ marginTop: "3px", accentColor: "#57ab5a" }}
+                />
+                {index + 1}. {item}
+              </label>
+            ))}
+            {!allChecked && (
+              <p
+                style={{ color: "#f0a500", fontSize: "12px", marginTop: "8px" }}
+              >
+                ⚠️ 請確認所有注意事項後才能啟動測試
+              </p>
+            )}
+            {allChecked && (
+              <p
+                style={{ color: "#57ab5a", fontSize: "12px", marginTop: "8px" }}
+              >
+                ✅ 所有注意事項已確認，可以啟動測試
+              </p>
+            )}
+          </section>
+
           {/* SOP 列表區 */}
           <div className="sop-list-container">
             <h3 className="list-label">
@@ -149,9 +223,13 @@ const SOPPage = () => {
                   <button
                     className="btn-launch"
                     onClick={() => startSop(sop)}
-                    disabled={data.status === "RUNNING"}
+                    disabled={data.status === "RUNNING" || !allChecked}
                   >
-                    {data.status === "RUNNING" ? "程序執行中" : "啟動測試程序"}
+                    {data.status === "RUNNING"
+                      ? "程序執行中"
+                      : !allChecked
+                        ? "請先確認注意事項"
+                        : "啟動測試程序"}
                   </button>
                 </div>
               ))
