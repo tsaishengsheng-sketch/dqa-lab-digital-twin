@@ -33,6 +33,10 @@ const SOPPage = () => {
     timestamp: "--:--:--",
   });
 
+  // 步驟追蹤 State
+  const [activeSop, setActiveSop] = useState(null);
+  const [completedSteps, setCompletedSteps] = useState({});
+
   // 啟動時獲取 SOP 列表
   useEffect(() => {
     const fetchSOPs = async () => {
@@ -73,10 +77,17 @@ const SOPPage = () => {
         device_id: "KSON_CH01",
         standard_id: sop.standard_id,
       });
+      setActiveSop(sop); // 記錄啟動的 SOP
+      setCompletedSteps({}); // 清空上次的勾選
     } catch (err) {
       alert("啟動程序失敗");
     }
   };
+
+  // 計算完成步驟數
+  const completedCount = Object.values(completedSteps).filter(Boolean).length;
+  const totalSteps = activeSop ? activeSop.steps.length : 0;
+  const allStepsDone = activeSop && completedCount === totalSteps;
 
   return (
     <div className="sop-page-layout">
@@ -237,6 +248,68 @@ const SOPPage = () => {
               <p style={{ color: "#8b949e" }}>正在加載測試程序...</p>
             )}
           </div>
+
+          {/* ✅ 步驟執行清單 — 放在 sop-list-container 外面 */}
+          {activeSop && (
+            <section
+              className="operation-box"
+              style={{ borderLeft: "4px solid #58a6ff" }}
+            >
+              <div className="box-header">
+                <span>📋</span>
+                <h2>{activeSop.name} - 執行步驟</h2>
+              </div>
+              {activeSop.steps.map((step) => (
+                <label
+                  key={step.step_id}
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "10px",
+                    marginBottom: "12px",
+                    cursor: "pointer",
+                    color: completedSteps[step.step_id] ? "#57ab5a" : "#cdd9e5",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!completedSteps[step.step_id]}
+                    onChange={() => {
+                      setCompletedSteps((prev) => ({
+                        ...prev,
+                        [step.step_id]: !prev[step.step_id],
+                      }));
+                    }}
+                    style={{ marginTop: "3px", accentColor: "#57ab5a" }}
+                  />
+                  <div>
+                    <div style={{ fontWeight: "bold" }}>
+                      Step {step.step_id}. {step.name}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "#8b949e",
+                        marginTop: "2px",
+                      }}
+                    >
+                      {step.description}
+                    </div>
+                  </div>
+                </label>
+              ))}
+              <p
+                style={{
+                  color: allStepsDone ? "#57ab5a" : "#8b949e",
+                  fontSize: "12px",
+                  marginTop: "8px",
+                }}
+              >
+                {completedCount} / {totalSteps} 步驟完成
+                {allStepsDone && " ✅ 所有步驟已完成！"}
+              </p>
+            </section>
+          )}
         </div>
       </main>
     </div>
