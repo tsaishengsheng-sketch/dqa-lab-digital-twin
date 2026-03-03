@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .sop import router as sop_router
 from .models import SessionLocal, DeviceData 
-from .standards import get_ramp_rate
+from .standards import get_ramp_rate, get_standard
 
 app = FastAPI(title="KSON AICM Digital Twin Server")
 app.state.AICM_CACHE = {} 
@@ -109,8 +109,11 @@ async def data_simulator():
                     # 獲取這個標準的升溫速率限制
                     max_ramp_rate = get_ramp_rate(standard_id)
                     
-                    # 根據 SOP 名稱確定目標溫度
-                    target_temp = 85.0 if "高溫" in item.get("running_sop_name", "") else -40.0
+                    standard = get_standard(standard_id)
+                    if standard:
+                        target_temp = standard.get("high_temperature") or standard.get("target_temperature", 25.0)
+                    else:
+                        target_temp = 25.0
                     
                     # 計算溫度差
                     temp_diff = target_temp - current_temp
