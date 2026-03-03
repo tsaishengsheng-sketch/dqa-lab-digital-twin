@@ -1,4 +1,5 @@
-from .models import engine, Base
+# init_db 已移至 models.py 统一管理
+# 保留此文件避免现有 import 出错
+from .models import init_db
 
-def init_db():
-    Base.metadata.create_all(bind=engine)
+__all__ = ["init_db"]
