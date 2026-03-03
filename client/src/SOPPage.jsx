@@ -9,7 +9,6 @@ const SAFETY_CHECKS = [
   "電源頭請放在治具、線材類上或懸空在鐵架下方，勿放在鐵架上。",
 ];
 
-// 只有这两个状态才显示执行画面
 const ACTIVE_STATUSES = ["RUNNING", "PAUSED"];
 
 const SOPPage = () => {
@@ -20,6 +19,7 @@ const SOPPage = () => {
     false,
   ]);
   const allChecked = safetyChecked.every(Boolean);
+
   const [testMethods, setTestMethods] = useState([]);
   const [data, setData] = useState({
     status: "OFFLINE",
@@ -29,10 +29,15 @@ const SOPPage = () => {
     description: "等待連線...",
     timestamp: "--:--:--",
   });
+
   const [activeSop, setActiveSop] = useState(null);
   const [completedSteps, setCompletedSteps] = useState({});
+  const [saved, setSaved] = useState(false);
 
   const isActive = ACTIVE_STATUSES.includes(data.status);
+  const completedCount = Object.values(completedSteps).filter(Boolean).length;
+  const totalSteps = activeSop ? activeSop.steps.length : 0;
+  const allStepsDone = activeSop && completedCount === totalSteps;
 
   useEffect(() => {
     const fetchSOPs = async () => {
@@ -63,6 +68,7 @@ const SOPPage = () => {
     if (type === "normal" || type === "emergency") {
       setActiveSop(null);
       setCompletedSteps({});
+      setSaved(false);
     }
   };
 
@@ -74,19 +80,37 @@ const SOPPage = () => {
         standard_id: sop.standard_id,
       });
       setActiveSop(sop);
-      // ✅ 启动时自动勾选 Step 1 和 Step 2
-      setCompletedSteps({ 1: true, 2: true });
+      setCompletedSteps({ 1: true, 2: true }); // Step 1、2 啟動時自動勾選
+      setSaved(false);
     } catch (err) {
       alert("啟動程序失敗");
     }
   };
 
-  const completedCount = Object.values(completedSteps).filter(Boolean).length;
-  const totalSteps = activeSop ? activeSop.steps.length : 0;
-  const allStepsDone = activeSop && completedCount === totalSteps;
+  const saveExecution = async () => {
+    try {
+      const steps = activeSop.steps.map((step) => ({
+        step_id: step.step_id,
+        completed: !!completedSteps[step.step_id],
+        parameters: null,
+        photos: null,
+      }));
+
+      await axios.post("http://localhost:8000/api/sop-executions/", {
+        sop_id: activeSop.sop_id,
+        steps: steps,
+      });
+
+      setSaved(true);
+    } catch (err) {
+      alert("❌ 儲存失敗，請確認後端是否正常運作。");
+      console.error(err);
+    }
+  };
 
   return (
     <div className="sop-page-layout">
+      {/* 左側：數據監控 */}
       <aside className="monitor-side">
         <div className="brand-box">
           <h1 className="main-title">KSON AICM | Digital Twin</h1>
@@ -96,12 +120,14 @@ const SOPPage = () => {
             <span className="update-time">{data.timestamp}</span>
           </div>
         </div>
+
         <div className="info-card highlight">
           <label>CURRENT MISSION</label>
           <div className="value-large">
             {isActive ? data.running_sop_name || "執行中" : "STANDBY (IDLE)"}
           </div>
         </div>
+
         <div className="info-card temp-card">
           <label>TEMP PV</label>
           <div className="value-pv">
@@ -109,6 +135,7 @@ const SOPPage = () => {
             <span className="unit">°C</span>
           </div>
         </div>
+
         <div className="info-card humi-card">
           <label>HUMI PV</label>
           <div className="value-pv">
@@ -118,8 +145,10 @@ const SOPPage = () => {
         </div>
       </aside>
 
+      {/* 右側：操作區 */}
       <main className="control-side">
         <div className="scroll-wrapper">
+          {/* 系統控制面板（永遠顯示） */}
           <section className="operation-box">
             <div className="box-header">
               <span className="pulse-icon"></span>
@@ -148,6 +177,7 @@ const SOPPage = () => {
             </div>
           </section>
 
+          {/* 執行中：步驟清單 */}
           {isActive && activeSop && (
             <section
               className="operation-box"
@@ -166,6 +196,7 @@ const SOPPage = () => {
               >
                 請依序確認每個步驟已完成：
               </p>
+
               {activeSop.steps.map((step) => (
                 <label
                   key={step.step_id}
@@ -205,6 +236,7 @@ const SOPPage = () => {
                   </div>
                 </label>
               ))}
+
               <p
                 style={{
                   color: allStepsDone ? "#57ab5a" : "#8b949e",
@@ -215,9 +247,33 @@ const SOPPage = () => {
                 {completedCount} / {totalSteps} 步驟完成
                 {allStepsDone && " ✅ 所有步驟已完成！"}
               </p>
+
+              {/* 全部完成才顯示儲存按鈕 */}
+              {allStepsDone && (
+                <button
+                  onClick={saveExecution}
+                  disabled={saved}
+                  style={{
+                    marginTop: "12px",
+                    padding: "10px 24px",
+                    backgroundColor: saved ? "#2d4a2d" : "#238636",
+                    color: saved ? "#57ab5a" : "#fff",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: saved ? "default" : "pointer",
+                    fontSize: "14px",
+                    fontWeight: "bold",
+                    width: "100%",
+                    transition: "background-color 0.2s",
+                  }}
+                >
+                  {saved ? "✅ 紀錄已儲存" : "💾 儲存執行紀錄"}
+                </button>
+              )}
             </section>
           )}
 
+          {/* 待機中：注意事項 + SOP 列表 */}
           {!isActive && (
             <>
               <section
