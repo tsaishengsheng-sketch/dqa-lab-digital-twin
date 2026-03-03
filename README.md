@@ -6,8 +6,9 @@
 
 - **物理模擬引擎** — 即時升降溫斜率模擬，遵守 EN50155、IEC60068 等標準速率限制
 - **SOP 動態管理** — 從 `standards.py` 載入測試流程，`standard_id` 由後端直接回傳
+- **狀態自動切換** — 待機/執行中畫面自動切換，暫停切換、正常停止、緊急停止邏輯完整
+- **SOP 步驟追蹤** — 啟動後顯示步驟清單，Step 1、2 自動勾選，監控與儲存步驟人工確認
 - **上架安全確認** — 啟動前強制確認四項注意事項，全勾才能啟動
-- **工業級控制面板** — 緊急停止、暫停切換、正常結束三鍵邏輯
 - **Pydantic 輸入驗證** — API 強型別檢查，錯誤立即回傳 422
 
 ## 支持的環境測試標準
@@ -41,9 +42,11 @@ make dev
 | GET | `/api/latest` | 即時溫濕度與狀態 |
 | GET | `/api/sop/` | SOP 列表（含 standard_id）|
 | POST | `/api/sop/start` | 啟動 SOP |
+| POST | `/api/sop-executions/` | 儲存執行紀錄 |
+| GET | `/api/sop-executions/{id}` | 讀取執行紀錄 |
 | POST | `/api/stop/emergency` | 緊急停止 |
-| POST | `/api/stop/pause` | 暫停 |
-| POST | `/api/stop/normal` | 正常停止 |
+| POST | `/api/stop/pause` | 暫停切換 |
+| POST | `/api/stop/normal` | 正常停止（自動降溫回 IDLE）|
 
 互動式 API 文件：`http://localhost:8000/docs`
 
@@ -56,12 +59,18 @@ make dev
 ## 更新紀錄
 
 ### 2026-03-03
-- **fix**: `include_router` 移至應用層級
+- **fix**: `include_router` 移至應用層級，修復重複 import
 - **fix**: 物理模擬目標溫度改從 `get_standard()` 讀取
 - **fix**: Dashboard 四種狀態正確顯示任務名稱
+- **fix**: `FINISHING` 降溫完成後自動回到 `IDLE`
+- **fix**: 暫停切換改為 `RUNNING ↔ PAUSED` 真正切換
 - **feat**: `SopResponse` 新增 `standard_id` 欄位
 - **feat**: Pydantic `StartSopRequest` 輸入驗證
 - **feat**: 上架驗證注意事項確認框
+- **feat**: 註冊 `sop_execution` router，支援執行紀錄 API
+- **feat**: SOP 執行步驟清單，啟動後自動勾選 Step 1、2
+- **feat**: 待機/執行中畫面自動切換邏輯
+- **refactor**: `standards.py` 統一步驟為 4 步，移除「啟動測試」步驟
 
 ### 2026-03-02
 - 整合 EN50155、IEC60068 環境測試標準

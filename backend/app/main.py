@@ -4,10 +4,9 @@ import random
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .sop import router as sop_router
+from .sop_execution import router as execution_router
 from .models import SessionLocal, DeviceData
 from .standards import get_ramp_rate, get_standard
-from .sop import router as sop_router
-from .sop_execution import router as execution_router  # ← 新增这行
 
 app = FastAPI(title="KSON AICM Digital Twin Server")
 app.state.AICM_CACHE = {}
@@ -15,7 +14,6 @@ background_tasks = set()
 app.include_router(sop_router, prefix="/api/sop", tags=["sop"])
 app.include_router(execution_router)
 
-# 修正重複參數問題
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,18 +21,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- 核心控制接口：強化邏輯描述 ---
+
+# --- 核心控制接口 ---
 
 
 @app.post("/api/stop/emergency")
 async def emergency_stop():
-    """🚨 緊急停止：中斷所有輸出，並提示使用者後續動作"""
+    """🚨 緊急停止：中斷所有輸出"""
     cache = app.state.AICM_CACHE
     for device_id in cache:
         cache[device_id]["status"] = "EMERGENCY"
         cache[device_id]["running_sop_id"] = None
         cache[device_id]["running_sop_name"] = "🚨 緊急停止中 - 待確認安全"
-
     print("\n" + "!" * 60)
     print("🚨 [ALERT] EMERGENCY STOP ACTIVATED.")
     print("📢 [SYSTEM] 設備輸出已中斷，等待操作員確認降溫指令。")
@@ -46,13 +44,17 @@ async def emergency_stop():
 async def pause_test():
     cache = app.state.AICM_CACHE
     for device_id in cache:
-        cache[device_id]["status"] = "PAUSED"
+        # 暫停切換：RUNNING ↔ PAUSED
+        if cache[device_id]["status"] == "RUNNING":
+            cache[device_id]["status"] = "PAUSED"
+        elif cache[device_id]["status"] == "PAUSED":
+            cache[device_id]["status"] = "RUNNING"
     return {"status": "success"}
 
 
 @app.post("/api/stop/normal")
 async def normal_stop():
-    """⏹️ 正常停止：自動進入收尾降溫模式"""
+    """⏹️ 正常停止：進入收尾降溫模式"""
     cache = app.state.AICM_CACHE
     for device_id in cache:
         cache[device_id]["status"] = "FINISHING"
@@ -64,7 +66,6 @@ async def normal_stop():
 async def get_latest():
     cache = app.state.AICM_CACHE
 
-    # 如果缓存为空，返回默认值
     if not cache or "KSON_CH01" not in cache:
         return {
             "status": "OFFLINE",
@@ -75,19 +76,21 @@ async def get_latest():
             "timestamp": datetime.datetime.now().strftime("%H:%M:%S"),
         }
 
-    # 获取设备数据
     data = cache["KSON_CH01"]
-
-    # 生成描述
     status = data.get("status", "OFFLINE")
+
     if status == "RUNNING":
         description = f"正在執行：{data.get('running_sop_name')}。溫度按標準速率變化。"
+    elif status == "PAUSED":
+        description = f"已暫停：{data.get('running_sop_name')}。點擊暫停切換可繼續。"
     elif status == "EMERGENCY":
-        description = "警告！已觸發緊急停止。"
+        description = "⚠️ 緊急停止已觸發，請確認設備安全後按正常停止。"
     elif status == "FINISHING":
-        description = "測試已結束，正在自動降溫到 25°C。"
-    else:
+        description = "測試已結束，正在自動降溫到 25°C，請稍候..."
+    elif status == "IDLE":
         description = "系統待機中，請選擇 SOP 後點擊啟動。"
+    else:
+        description = "等待連線..."
 
     return {
         "status": status,
@@ -103,7 +106,7 @@ async def get_latest():
 
 
 async def data_simulator():
-    """物理模擬器 - 遵守標準的升降溫"""
+    """物理模擬器 - 遵守標準的升降溫速率"""
     while True:
         cache = app.state.AICM_CACHE
         db = SessionLocal()
@@ -113,13 +116,10 @@ async def data_simulator():
                 current_temp = item.get("temperature", 25.0)
 
                 if status == "RUNNING":
-                    # 獲取當前的標準
                     standard_id = item.get("standard_id", "IEC60068_CYCLE")
-
-                    # 獲取這個標準的升溫速率限制
                     max_ramp_rate = get_ramp_rate(standard_id)
-
                     standard = get_standard(standard_id)
+
                     if standard:
                         target_temp = standard.get("high_temperature") or standard.get(
                             "target_temperature", 25.0
@@ -127,34 +127,32 @@ async def data_simulator():
                     else:
                         target_temp = 25.0
 
-                    # 計算溫度差
                     temp_diff = target_temp - current_temp
-
                     if abs(temp_diff) > 0.1:
-                        # 按照標準的最大升溫速率
                         max_change_per_sec = max_ramp_rate / 60.0
                         actual_change = min(abs(temp_diff), max_change_per_sec)
-
-                        # 向目標溫度靠近
                         new_temp = current_temp + (
                             actual_change if temp_diff > 0 else -actual_change
                         )
                     else:
                         new_temp = current_temp
 
-                    # 加入隨機抖動
                     new_temp += random.uniform(-0.1, 0.1)
-
                     item["temperature"] = round(new_temp, 2)
 
                 elif status == "FINISHING":
-                    # 降溫到 25°C
                     diff = 25.0 - current_temp
                     if abs(diff) > 0.5:
                         item["temperature"] += 0.4 if diff > 0 else -0.4
+                    else:
+                        # ✅ 降溫完成，自動回到 IDLE
+                        item["temperature"] = 25.0
+                        item["status"] = "IDLE"
+                        item["running_sop_name"] = "STANDBY"
+                        print("✅ [SYSTEM] 降溫完成，系統回到待機狀態。")
 
                 elif status == "EMERGENCY":
-                    # 快速降溫
+                    # 緊急停止時溫度微幅抖動（不主動降溫）
                     item["temperature"] += random.uniform(-0.05, 0.05)
 
                 # 保存到資料庫
@@ -178,12 +176,10 @@ async def data_simulator():
 
 @app.on_event("startup")
 async def startup_event():
-    # 初始化数据库表
     from .database import init_db
 
     init_db()
 
-    # 初始化缓存
     app.state.AICM_CACHE = {
         "KSON_CH01": {
             "temperature": 25.0,
@@ -194,7 +190,6 @@ async def startup_event():
         }
     }
 
-    # 启动模拟器
     sim_task = asyncio.create_task(data_simulator())
     background_tasks.add(sim_task)
     print("✅ System initialized")
