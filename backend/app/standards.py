@@ -1,234 +1,368 @@
 """
-環境測試標準定義 + SOP 整合
-參考: EN50155, IEC60068, IEC60954, IEC61850, KEMA, NEMA
+環境測試標準定義
+依據以下公開法規整理：
+- IEC 60068-2-14: 溫度循環測試
+- IEC 60068-2-30: 濕熱循環測試
+- EN 50155:2017:  歐洲鐵路電子設備
+- IEC 61850-3:    變電站通訊自動化設備
+- DNV 2.4:       船舶設備環境認證
+- KEMA/CENELEC:  荷蘭/歐洲電力設備認證
+- NMEA 0183/2000: 航海電子通訊設備 (IEC 61162)
 """
 
-from typing import Dict, Any
-
-# ============================================================================
-# 標準定義 + SOP 步驟整合
-# ============================================================================
-STANDARDS_AND_SOPS: Dict[str, Dict[str, Any]] = {
+STANDARDS_AND_SOPS = {
+    # ─────────────────────────────────────────
+    # ✅ IEC 60068-2-14 溫度循環
+    # ─────────────────────────────────────────
     "IEC60068_CYCLE": {
-        "standard_id": "IEC60068-2-14",
         "sop_id": "temp_cycle_test",
         "name": "溫度循環測試",
-        "test_type": "chamber",
-        "version": "1.0",
-        "description": "IEC 60068-2-14 溫度循環環境測試",
-        "number_of_cycles": 5,
-        "low_temperature": -40,
-        "high_temperature": 85,
-        "dwell_time_hours": 1,
-        "ramp_rate": 2.0,
-        "stabilization_time_hours": 0.5,
-        "power_on": False,
-        "humidity_control": False,
+        "test_type": "IEC 60068-2-14 Temperature Cycling",
+        "version": "v2.1",
+        "high_temperature": 85.0,
+        "low_temperature": -40.0,
+        "ramp_rate": 2.0,  # °C/min，IEC 60068-2-14 規定
+        "dwell_time": 60,  # 分鐘，每溫度停留時間
+        "cycles": 5,
+        "humidity": None,  # 溫度循環不控制濕度
+        "temp_tolerance": 2.0,  # ±2°C，IEC 60068 標準容差
+        "humi_tolerance": 5.0,
+        "reference": "IEC 60068-2-14:2009",
         "steps": [
             {
                 "step_id": 1,
                 "name": "設備開機與檢查",
-                "description": "確認電源、保險絲、水箱水位正常。",
-                "requires_photo": True,
-                "optional": False,
+                "description": "確認電源、保險絲、水箱、連接狀態正常",
             },
             {
                 "step_id": 2,
                 "name": "確認測試參數",
-                "description": "確認低溫 -40°C、高溫 85°C、5 個循環、升降溫速率 2°C/min。",
-                "requires_photo": False,
-                "optional": False,
+                "description": "確認高溫 85°C / 低溫 -40°C / 速率 2°C/min / 5 循環",
             },
             {
                 "step_id": 3,
                 "name": "監控測試過程",
-                "description": "定時檢查溫度曲線是否正常，確認升降溫符合標準速率。",
-                "requires_photo": False,
-                "optional": False,
+                "description": "監控升降溫曲線，確認符合 IEC 60068-2-14",
             },
             {
                 "step_id": 4,
                 "name": "儲存測試紀錄",
-                "description": "測試完成後，儲存 CSV 檔案並確認數據完整。",
-                "requires_photo": True,
-                "optional": False,
+                "description": "測試完成後儲存執行紀錄與溫度數據",
             },
         ],
     },
+    # ─────────────────────────────────────────
+    # ✅ EN 50155 高溫儲存
+    # ─────────────────────────────────────────
     "EN50155_HIGH": {
-        "standard_id": "EN50155",
         "sop_id": "en50155_high_temp",
         "name": "EN50155 高溫儲存測試",
-        "test_type": "chamber",
-        "version": "1.0",
-        "description": "歐洲鐵路設備高溫環境測試",
-        "target_temperature": 70,
-        "high_temperature": 70,
-        "duration_hours": 16,
-        "ramp_rate": 5.0,
-        "ramp_rate_max": 5.0,
-        "stabilization_time_hours": 2,
-        "power_on": False,
-        "humidity_control": False,
+        "test_type": "EN 50155:2017 High Temperature Storage",
+        "version": "v1.3",
+        "high_temperature": 70.0,
+        "low_temperature": None,
+        "target_temperature": 70.0,
+        "ramp_rate": 5.0,  # °C/min，EN 50155 規定上限
+        "dwell_time": 960,  # 16 小時
+        "cycles": 1,
+        "humidity": None,
+        "temp_tolerance": 2.0,
+        "humi_tolerance": 5.0,
+        "reference": "EN 50155:2017 Clause 12.2.4",
         "steps": [
             {
                 "step_id": 1,
                 "name": "設備開機與檢查",
-                "description": "確認電源、保險絲、水箱水位正常。",
-                "requires_photo": True,
-                "optional": False,
+                "description": "確認電源、保險絲、水箱、連接狀態正常",
             },
             {
                 "step_id": 2,
                 "name": "確認測試參數",
-                "description": "確認溫度 70°C、持續 16 小時、升溫速率不超過 5°C/min。",
-                "requires_photo": False,
-                "optional": False,
+                "description": "確認目標溫度 70°C / 速率 ≤5°C/min / 持續 16 小時",
             },
             {
                 "step_id": 3,
                 "name": "監控測試過程",
-                "description": "定時檢查溫度曲線是否正常，確認溫度維持在 70°C。",
-                "requires_photo": False,
-                "optional": False,
+                "description": "監控升溫過程，確認符合 EN 50155:2017",
             },
             {
                 "step_id": 4,
                 "name": "儲存測試紀錄",
-                "description": "測試完成後，儲存 CSV 檔案並確認數據完整。",
-                "requires_photo": True,
-                "optional": False,
+                "description": "測試完成後儲存執行紀錄與溫度數據",
             },
         ],
     },
+    # ─────────────────────────────────────────
+    # ✅ EN 50155 低溫儲存
+    # ─────────────────────────────────────────
     "EN50155_LOW": {
-        "standard_id": "EN50155",
         "sop_id": "en50155_low_temp",
         "name": "EN50155 低溫儲存測試",
-        "test_type": "chamber",
-        "version": "1.0",
-        "description": "歐洲鐵路設備低溫環境測試",
-        "target_temperature": -40,
-        "high_temperature": -40,
-        "duration_hours": 16,
+        "test_type": "EN 50155:2017 Low Temperature Storage",
+        "version": "v1.3",
+        "high_temperature": None,
+        "low_temperature": -40.0,
+        "target_temperature": -40.0,
         "ramp_rate": 5.0,
-        "ramp_rate_max": 5.0,
-        "stabilization_time_hours": 2,
-        "power_on": False,
-        "humidity_control": False,
+        "dwell_time": 960,  # 16 小時
+        "cycles": 1,
+        "humidity": None,
+        "temp_tolerance": 2.0,
+        "humi_tolerance": 5.0,
+        "reference": "EN 50155:2017 Clause 12.2.4",
         "steps": [
             {
                 "step_id": 1,
                 "name": "設備開機與檢查",
-                "description": "確認電源、保險絲、水箱水位正常。",
-                "requires_photo": True,
-                "optional": False,
+                "description": "確認電源、保險絲、水箱、連接狀態正常",
             },
             {
                 "step_id": 2,
                 "name": "確認測試參數",
-                "description": "確認溫度 -40°C、持續 16 小時、降溫速率不超過 5°C/min。",
-                "requires_photo": False,
-                "optional": False,
+                "description": "確認目標溫度 -40°C / 速率 ≤5°C/min / 持續 16 小時",
             },
             {
                 "step_id": 3,
                 "name": "監控測試過程",
-                "description": "定時檢查溫度曲線是否正常，確認溫度維持在 -40°C。",
-                "requires_photo": False,
-                "optional": False,
+                "description": "監控降溫過程，確認符合 EN 50155:2017",
             },
             {
                 "step_id": 4,
                 "name": "儲存測試紀錄",
-                "description": "測試完成後，儲存 CSV 檔案並確認數據完整。",
-                "requires_photo": True,
-                "optional": False,
+                "description": "測試完成後儲存執行紀錄與溫度數據",
             },
         ],
     },
+    # ─────────────────────────────────────────
+    # ✅ IEC 60068-2-30 濕熱循環
+    # ─────────────────────────────────────────
     "IEC60068_DAMP": {
-        "standard_id": "IEC60068-2-30",
-        "sop_id": "damp_heat_cyclic_test",
+        "sop_id": "damp_heat_cycle",
         "name": "濕熱循環測試",
-        "test_type": "chamber",
-        "version": "1.0",
-        "description": "IEC 60068-2-30 濕熱循環環境測試",
-        "number_of_cycles": 6,
-        "low_temperature": 25,
-        "high_temperature": 55,
-        "humidity_rh_percent": 95,
-        "cycle_duration_hours": 24,
+        "test_type": "IEC 60068-2-30 Damp Heat Cycling",
+        "version": "v1.0",
+        "high_temperature": 55.0,
+        "low_temperature": 25.0,
+        "target_temperature": 55.0,
         "ramp_rate": 2.0,
-        "power_on": False,
-        "humidity_control": True,
+        "dwell_time": 720,  # 12 小時（每循環 24 小時）
+        "cycles": 6,
+        "humidity": 95.0,  # 95% RH
+        "temp_tolerance": 2.0,
+        "humi_tolerance": 5.0,
+        "reference": "IEC 60068-2-30:2005",
         "steps": [
             {
                 "step_id": 1,
                 "name": "設備開機與檢查",
-                "description": "確認電源、保險絲、水箱水位正常。",
-                "requires_photo": True,
-                "optional": False,
+                "description": "確認電源、保險絲、水箱加水至正常水位",
             },
             {
                 "step_id": 2,
                 "name": "確認測試參數",
-                "description": "確認 25°C→55°C、濕度 95% RH、6 個循環、每循環 24 小時。",
-                "requires_photo": False,
-                "optional": False,
+                "description": "確認溫度 25~55°C / 濕度 95%RH / 6 循環",
             },
             {
                 "step_id": 3,
                 "name": "監控測試過程",
-                "description": "定時檢查溫度與濕度曲線是否正常，確認濕度維持在 95% RH。",
-                "requires_photo": False,
-                "optional": False,
+                "description": "監控溫濕度循環曲線，確認符合 IEC 60068-2-30",
             },
             {
                 "step_id": 4,
                 "name": "儲存測試紀錄",
-                "description": "測試完成後，儲存 CSV 檔案並確認數據完整。",
-                "requires_photo": True,
-                "optional": False,
+                "description": "測試完成後儲存執行紀錄與溫濕度數據",
+            },
+        ],
+    },
+    # ─────────────────────────────────────────
+    # 🆕 IEC 61850-3 變電站通訊設備
+    # 依據：IEC 61850-3:2013，溫度 -10~+55°C（標準），延伸 -40~+70°C
+    # ─────────────────────────────────────────
+    "IEC61850_3": {
+        "sop_id": "iec61850_3_env",
+        "name": "IEC 61850-3 變電站設備環境測試",
+        "test_type": "IEC 61850-3 Substation Environmental Test",
+        "version": "v1.0",
+        "high_temperature": 70.0,  # 延伸溫度範圍上限
+        "low_temperature": -40.0,  # 延伸溫度範圍下限
+        "target_temperature": 70.0,
+        "ramp_rate": 2.0,  # 遵照 IEC 60068-2-14
+        "dwell_time": 60,
+        "cycles": 3,
+        "humidity": 95.0,  # 95% RH，24小時平均
+        "temp_tolerance": 2.0,
+        "humi_tolerance": 5.0,
+        "reference": "IEC 61850-3:2013 + IEC 60068-2-14",
+        "steps": [
+            {
+                "step_id": 1,
+                "name": "設備開機與檢查",
+                "description": "確認電源、保險絲、水箱、連接狀態正常",
+            },
+            {
+                "step_id": 2,
+                "name": "確認測試參數",
+                "description": "確認溫度 -40~+70°C / 濕度 95%RH / 3 循環",
+            },
+            {
+                "step_id": 3,
+                "name": "監控測試過程",
+                "description": "監控測試曲線，確認符合 IEC 61850-3:2013",
+            },
+            {
+                "step_id": 4,
+                "name": "儲存測試紀錄",
+                "description": "測試完成後儲存執行紀錄與數據",
+            },
+        ],
+    },
+    # ─────────────────────────────────────────
+    # 🆕 DNV 2.4 船舶設備認證
+    # 依據：DNV Standard for Certification No. 2.4
+    # 溫度容差 ±2°C，濕度容差 ±10%RH（一般）/ +2%/-3%（精密）
+    # ─────────────────────────────────────────
+    "DNV_2_4": {
+        "sop_id": "dnv_2_4_env",
+        "name": "DNV 2.4 船舶設備環境測試",
+        "test_type": "DNV Standard for Certification 2.4",
+        "version": "v1.0",
+        "high_temperature": 70.0,  # DNV Class C/D 上限
+        "low_temperature": -25.0,  # DNV 低溫儲存
+        "target_temperature": 70.0,
+        "ramp_rate": 3.0,  # DNV 2.4 規定升溫速率
+        "dwell_time": 120,  # 2 小時穩定時間
+        "cycles": 2,  # DNV 要求 2 循環
+        "humidity": 95.0,  # 95% RH
+        "temp_tolerance": 2.0,  # DNV 2.4 ±2°C
+        "humi_tolerance": 10.0,  # DNV 2.4 ±10%RH（一般容差）
+        "reference": "DNV Standard for Certification No. 2.4",
+        "steps": [
+            {
+                "step_id": 1,
+                "name": "設備開機與檢查",
+                "description": "確認電源、保險絲、水箱、連接狀態正常",
+            },
+            {
+                "step_id": 2,
+                "name": "確認測試參數",
+                "description": "確認溫度 -25~+70°C / 濕度 95%RH / 2 循環 / DNV 2.4",
+            },
+            {
+                "step_id": 3,
+                "name": "監控測試過程",
+                "description": "監控測試曲線，確認符合 DNV Standard 2.4",
+            },
+            {
+                "step_id": 4,
+                "name": "儲存測試紀錄",
+                "description": "測試完成後儲存執行紀錄與數據",
+            },
+        ],
+    },
+    # ─────────────────────────────────────────
+    # 🆕 KEMA / CENELEC 電力設備認證
+    # 依據：KEMA KEUR，基於 IEC/CENELEC 標準
+    # KEMA Labs 為 ISO/IEC 17025 認可實驗室
+    # ─────────────────────────────────────────
+    "KEMA": {
+        "sop_id": "kema_env",
+        "name": "KEMA 電力設備環境測試",
+        "test_type": "KEMA / CENELEC Environmental Certification",
+        "version": "v1.0",
+        "high_temperature": 70.0,
+        "low_temperature": -25.0,
+        "target_temperature": 70.0,
+        "ramp_rate": 2.0,  # 遵照 IEC/CENELEC
+        "dwell_time": 120,
+        "cycles": 2,
+        "humidity": 93.0,  # 93% RH（KEMA 電力設備標準）
+        "temp_tolerance": 2.0,
+        "humi_tolerance": 5.0,
+        "reference": "KEMA KEUR + IEC 60068 + CENELEC",
+        "steps": [
+            {
+                "step_id": 1,
+                "name": "設備開機與檢查",
+                "description": "確認電源、保險絲、水箱、連接狀態正常",
+            },
+            {
+                "step_id": 2,
+                "name": "確認測試參數",
+                "description": "確認溫度 -25~+70°C / 濕度 93%RH / KEMA 規格",
+            },
+            {
+                "step_id": 3,
+                "name": "監控測試過程",
+                "description": "監控測試曲線，確認符合 KEMA / CENELEC 要求",
+            },
+            {
+                "step_id": 4,
+                "name": "儲存測試紀錄",
+                "description": "測試完成後儲存執行紀錄與數據",
+            },
+        ],
+    },
+    # ─────────────────────────────────────────
+    # 🆕 NMEA 0183 / NMEA 2000 航海電子設備
+    # 依據：IEC 61162-1 (NMEA 0183) / IEC 61162-3 (NMEA 2000)
+    # 海洋環境：鹽霧、高濕、寬溫度範圍
+    # ─────────────────────────────────────────
+    "NMEA_MARINE": {
+        "sop_id": "nmea_marine_env",
+        "name": "NMEA 航海電子設備環境測試",
+        "test_type": "NMEA 0183/2000 Marine Environmental Test (IEC 61162)",
+        "version": "v1.0",
+        "high_temperature": 55.0,
+        "low_temperature": -15.0,
+        "target_temperature": 55.0,
+        "ramp_rate": 2.0,
+        "dwell_time": 60,
+        "cycles": 3,
+        "humidity": 95.0,  # 海洋環境高濕度
+        "temp_tolerance": 2.0,
+        "humi_tolerance": 5.0,
+        "reference": "IEC 61162-1 (NMEA 0183) / IEC 61162-3 (NMEA 2000)",
+        "steps": [
+            {
+                "step_id": 1,
+                "name": "設備開機與檢查",
+                "description": "確認電源、保險絲、水箱、連接狀態正常",
+            },
+            {
+                "step_id": 2,
+                "name": "確認測試參數",
+                "description": "確認溫度 -15~+55°C / 濕度 95%RH / IEC 61162",
+            },
+            {
+                "step_id": 3,
+                "name": "監控測試過程",
+                "description": "監控測試曲線，確認符合 NMEA / IEC 61162 要求",
+            },
+            {
+                "step_id": 4,
+                "name": "儲存測試紀錄",
+                "description": "測試完成後儲存執行紀錄與數據",
             },
         ],
     },
 }
 
 
-# ============================================================================
-# 輔助函數
-# ============================================================================
+def get_standard(standard_id: str) -> dict:
+    """取得指定標準的完整參數"""
+    return STANDARDS_AND_SOPS.get(standard_id, {})
 
 
-def get_standard(standard_id):
-    """根據標準 ID 獲取標準定義"""
-    return STANDARDS_AND_SOPS.get(standard_id)
+def get_ramp_rate(standard_id: str) -> float:
+    """取得指定標準的升降溫速率（°C/min）"""
+    return STANDARDS_AND_SOPS.get(standard_id, {}).get("ramp_rate", 2.0)
 
 
-def get_ramp_rate(standard_id):
-    """獲取升溫速率限制"""
-    standard = get_standard(standard_id)
-    if standard:
-        return standard.get("ramp_rate_max") or standard.get("ramp_rate", 3.0)
-    return 3.0
-
-
-def get_all_standards():
-    """獲取所有標準列表"""
+def get_all_standards() -> list:
+    """取得所有標準 ID 列表"""
     return list(STANDARDS_AND_SOPS.keys())
 
 
-def get_sop_by_standard(standard_id):
-    """根據標準 ID 獲取完整的 SOP 定義"""
-    standard = get_standard(standard_id)
-    if standard:
-        return {
-            "sop_id": standard.get("sop_id"),
-            "name": standard.get("name"),
-            "test_type": standard.get("test_type"),
-            "version": standard.get("version"),
-            "description": standard.get("description"),
-            "steps": standard.get("steps", []),
-        }
-    return None
+def get_sop_by_standard(standard_id: str) -> dict:
+    """依標準 ID 取得 SOP 資料"""
+    return STANDARDS_AND_SOPS.get(standard_id, {})

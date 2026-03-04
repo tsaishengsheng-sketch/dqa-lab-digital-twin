@@ -10,10 +10,6 @@ router = APIRouter(prefix="/api/reports", tags=["reports"])
 REPORT_VERSION = "1.0"
 LAB_NAME = "DQA Lab - KSON AICM Digital Twin"
 
-# IEC 60068 / ISO 17025 標準容差
-TEMP_TOLERANCE = 2.0  # ±2°C (IEC 60068 一般量測容差)
-HUMI_TOLERANCE = 5.0  # ±5% RH
-
 
 def _write(output: io.BytesIO, text: str):
     output.write((text + "\r\n").encode("big5", errors="replace"))
@@ -27,7 +23,7 @@ def _section(output: io.BytesIO, title: str):
 
 
 def _row(output: io.BytesIO, label: str, value):
-    _write(output, f"  {label:<28}{value}")
+    _write(output, f"  {label:<30}{value}")
 
 
 @router.get("/csv/{execution_id}")
@@ -35,7 +31,6 @@ def download_csv_report(execution_id: int):
     """下載符合 ISO 17025 格式的 CSV 測試報告"""
     db = SessionLocal()
     try:
-        # --- 取得資料 ---
         execution = (
             db.query(SopExecution).filter(SopExecution.id == execution_id).first()
         )
@@ -62,7 +57,7 @@ def download_csv_report(execution_id: int):
             .all()
         )
 
-        # --- 從 standards.py 取得測試條件 ---
+        # 從 standards.py 取得測試條件
         sop_data = None
         standard_id = None
         for std_id, std_data in STANDARDS_AND_SOPS.items():
@@ -70,9 +65,14 @@ def download_csv_report(execution_id: int):
                 sop_data = std_data
                 standard_id = std_id
                 break
+
         standard = get_standard(standard_id) if standard_id else {}
 
-        # --- 統計溫度數據 ---
+        # 從 standards.py 讀取各標準專屬容差
+        temp_tolerance = standard.get("temp_tolerance", 2.0)
+        humi_tolerance = standard.get("humi_tolerance", 5.0)
+
+        # 統計溫濕度數據
         temps = [r.temperature for r in device_records if r.temperature is not None]
         humis = [r.humidity for r in device_records if r.humidity is not None]
 
@@ -81,7 +81,7 @@ def download_csv_report(execution_id: int):
         temp_avg = round(sum(temps) / len(temps), 2) if temps else "N/A"
         humi_avg = round(sum(humis) / len(humis), 1) if humis else "N/A"
 
-        # --- PASS / FAIL 判斷 (IEC 60068 ±2°C 容差) ---
+        # PASS / FAIL 判斷（使用各標準專屬容差）
         target_high = standard.get("high_temperature") or standard.get(
             "target_temperature"
         )
@@ -90,30 +90,30 @@ def download_csv_report(execution_id: int):
         fail_reason = []
 
         if target_high and temps:
-            if temp_max > target_high + TEMP_TOLERANCE:
+            if temp_max > target_high + temp_tolerance:
                 pass_fail = "FAIL"
                 fail_reason.append(
-                    f"最高溫 {temp_max}°C 超出上限 {target_high + TEMP_TOLERANCE}°C"
+                    f"最高溫 {temp_max}C 超出上限 {round(target_high + temp_tolerance, 1)}C"
                 )
         if target_low and temps:
-            if temp_min < target_low - TEMP_TOLERANCE:
+            if temp_min < target_low - temp_tolerance:
                 pass_fail = "FAIL"
                 fail_reason.append(
-                    f"最低溫 {temp_min}°C 超出下限 {target_low - TEMP_TOLERANCE}°C"
+                    f"最低溫 {temp_min}C 超出下限 {round(target_low - temp_tolerance, 1)}C"
                 )
 
-        # --- 產生報告 ---
+        # 產生報告
         output = io.BytesIO()
         report_no = f"RPT-{execution.created_at.strftime('%Y%m%d')}-{execution_id:03d}"
 
         _write(output, "")
-        _write(output, "  ██████████████████████████████████████████████████████████")
+        _write(output, "  " + "=" * 56)
         _write(output, f"  {LAB_NAME}")
-        _write(output, "  環境測試報告 Environmental Test Report")
-        _write(output, "  ██████████████████████████████████████████████████████████")
+        _write(output, "  環境測試報告  Environmental Test Report")
+        _write(output, "  " + "=" * 56)
 
-        # 1. 報告識別資訊 (ISO 17025 Clause 7.8 要求)
-        _section(output, "1. 報告識別資訊 Report Identification")
+        # 1. 報告識別（ISO 17025 Clause 7.8）
+        _section(output, "1. 報告識別  Report Identification")
         _row(output, "報告編號 Report No.:", report_no)
         _row(output, "報告版本 Version:", REPORT_VERSION)
         _row(
@@ -122,10 +122,10 @@ def download_csv_report(execution_id: int):
             datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         )
         _row(output, "執行記錄 ID:", execution_id)
-        _row(output, "參考標準 Reference Standard:", "ISO/IEC 17025:2017")
+        _row(output, "認可標準 Accreditation:", "ISO/IEC 17025:2017")
 
-        # 2. 受測樣品資訊
-        _section(output, "2. 受測樣品資訊 Test Item Information")
+        # 2. 受測樣品
+        _section(output, "2. 受測樣品資訊  Test Item Information")
         _row(output, "設備編號 Device ID:", "KSON_CH01")
         _row(output, "SOP ID:", execution.sop_id)
         _row(
@@ -140,67 +140,84 @@ def download_csv_report(execution_id: int):
         )
         _row(
             output,
-            "測試版本 SOP Version:",
+            "SOP 版本 SOP Version:",
             sop_data.get("version", "N/A") if sop_data else "N/A",
         )
-
-        # 3. 測試條件 (IEC 60068 要求記錄完整測試條件)
-        _section(output, "3. 測試條件 Test Conditions")
-        _row(output, "測試標準 Standard:", standard_id or "N/A")
-        _row(output, "目標高溫 Target High (°C):", target_high or "N/A")
-        _row(output, "目標低溫 Target Low (°C):", target_low or "N/A")
         _row(
             output,
-            "升降溫速率 Ramp Rate (°C/min):",
+            "參考法規 Reference:",
+            standard.get("reference", "N/A") if standard else "N/A",
+        )
+
+        # 3. 測試條件（依各法規填入）
+        _section(output, "3. 測試條件  Test Conditions")
+        _row(output, "測試標準 Standard:", standard_id or "N/A")
+        _row(output, "目標高溫 Target High (C):", target_high or "N/A")
+        _row(output, "目標低溫 Target Low (C):", target_low or "N/A")
+        _row(
+            output,
+            "升降溫速率 Ramp Rate (C/min):",
             standard.get("ramp_rate", "N/A") if standard else "N/A",
+        )
+        _row(
+            output,
+            "停留時間 Dwell Time (min):",
+            standard.get("dwell_time", "N/A") if standard else "N/A",
         )
         _row(
             output,
             "循環次數 Cycles:",
             standard.get("cycles", "N/A") if standard else "N/A",
         )
-        _row(output, "溫度容差 Temp Tolerance (°C):", f"± {TEMP_TOLERANCE} (IEC 60068)")
-        _row(
-            output, "濕度容差 Humi Tolerance (%RH):", f"± {HUMI_TOLERANCE} (IEC 60068)"
-        )
         _row(
             output,
-            "測試開始 Test Start:",
+            "濕度設定 Humidity (%RH):",
+            standard.get("humidity", "N/A") if standard else "N/A",
+        )
+        _row(output, "溫度容差 Temp Tolerance (C):", f"± {temp_tolerance}")
+        _row(output, "濕度容差 Humi Tolerance (%RH):", f"± {humi_tolerance}")
+        _row(
+            output,
+            "測試開始 Start Time:",
             execution.created_at.strftime("%Y-%m-%d %H:%M:%S"),
         )
         _row(output, "數據筆數 Data Points:", len(device_records))
 
         # 4. 步驟執行記錄
-        _section(output, "4. 步驟執行記錄 Step Execution Records")
-        _write(output, f"  {'步驟':>6}  {'名稱':<20}  {'狀態':<8}")
-        _write(output, "  " + "-" * 40)
+        _section(output, "4. 步驟執行記錄  Step Execution Records")
+        _write(output, f"  {'步驟':>6}  {'狀態':<12}")
+        _write(output, "  " + "-" * 30)
         for step in steps:
             status = "完成 PASS" if step.completed else "未完成 FAIL"
-            _write(output, f"  Step {step.step_id:<4}  {'':<20}  {status}")
+            _write(output, f"  Step {step.step_id:<4}  {status}")
         if not steps:
-            _write(output, "  （無步驟記錄）")
+            _write(output, "  (無步驟記錄)")
 
-        # 5. 測試數據統計摘要
-        _section(output, "5. 測試數據統計摘要 Measurement Summary")
-        _row(output, "最高溫度 Max Temp (°C):", temp_max)
-        _row(output, "最低溫度 Min Temp (°C):", temp_min)
-        _row(output, "平均溫度 Avg Temp (°C):", temp_avg)
+        # 5. 測試數據統計
+        _section(output, "5. 測試數據統計  Measurement Summary")
+        _row(output, "最高溫度 Max Temp (C):", temp_max)
+        _row(output, "最低溫度 Min Temp (C):", temp_min)
+        _row(output, "平均溫度 Avg Temp (C):", temp_avg)
         _row(output, "平均濕度 Avg Humi (%RH):", humi_avg)
-        _row(output, "量測不確定度 Uncertainty:", "± 0.1°C (儀器解析度)")
+        _row(output, "量測不確定度 Uncertainty:", "± 0.1C (儀器解析度)")
 
-        # 6. 測試結論 PASS / FAIL
-        _section(output, "6. 測試結論 Test Conclusion")
-        _row(output, "判定結果 Result:", f"【 {pass_fail} 】")
+        # 6. 測試結論
+        _section(output, "6. 測試結論  Test Conclusion")
+        _row(output, "判定結果 Result:", f"[ {pass_fail} ]")
         if fail_reason:
             for reason in fail_reason:
-                _row(output, "不合格原因:", reason)
+                _row(output, "不合格原因 Fail Reason:", reason)
         else:
-            _row(output, "說明:", "所有溫度數據均在標準容差範圍內")
-        _row(output, "判定依據:", f"IEC 60068 ± {TEMP_TOLERANCE}°C 容差")
+            _row(output, "說明 Note:", f"溫度數據均在 ±{temp_tolerance}C 容差範圍內")
+        _row(
+            output,
+            "判定依據 Based on:",
+            standard.get("reference", "IEC 60068") if standard else "IEC 60068",
+        )
 
-        # 7. 原始溫濕度數據
-        _section(output, "7. 原始溫濕度數據 Raw Temperature & Humidity Data")
-        _write(output, f"  {'時間戳':<22}  {'溫度(°C)':>10}  {'濕度(%RH)':>10}")
+        # 7. 原始數據
+        _section(output, "7. 原始溫濕度數據  Raw Temperature & Humidity Data")
+        _write(output, f"  {'時間戳':<22}  {'溫度(C)':>10}  {'濕度(%RH)':>10}")
         _write(output, "  " + "-" * 48)
         for record in device_records:
             ts = record.timestamp.strftime("%Y-%m-%d %H:%M:%S")
@@ -211,9 +228,9 @@ def download_csv_report(execution_id: int):
             _write(output, f"  {ts:<22}  {temp:>10}  {humi:>10}")
 
         _write(output, "")
-        _write(output, "=" * 60)
-        _write(output, f"  報告結束 End of Report — {report_no}")
-        _write(output, "=" * 60)
+        _write(output, "  " + "=" * 56)
+        _write(output, f"  報告結束  End of Report  [{report_no}]")
+        _write(output, "  " + "=" * 56)
         _write(output, "")
 
         output.seek(0)
