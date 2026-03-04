@@ -10,6 +10,7 @@
 - **狀態自動切換** — 待機/執行中畫面自動切換，暫停切換、正常停止、緊急停止邏輯完整
 - **ISO 17025 測試報告** — 7 節格式，PASS/FAIL 自動判定，big5 編碼 Excel 相容
 - **上架安全確認** — 啟動前強制確認四項注意事項，全勾才能啟動
+- **報告檢視頁 (ReportsPage)** — 歷史執行紀錄查詢、PASS/FAIL 篩選、ISO 17025 CSV 下載
 
 ## 支持的環境測試標準（62 個測試條件）
 
@@ -59,9 +60,25 @@ make dev
 前端：React 18、Vite、Recharts、Axios
 環境：Python 3.9+、Node.js 16+、macOS/Linux（需要 socat）
 
+## 報告流程說明
+
+本系統採用兩層報告架構：
+
+**內部測試紀錄**（系統自動產生）— 記錄測試過程，供工程師追蹤。下載格式為 ISO 17025 CSV，包含即時溫濕度數據、步驟完成狀態、PASS/FAIL 自動判定。
+
+**對外 QA Test Report**（工程師人工整理）— 填入正式客戶/認證機構用的 Word 報告模板，需主管簽名後發出。模板位於 `docs/templates/QA_Test_Report_Template.docx`。
+
+## 延伸文件
+
+- [系統架構與開發進度](./docs/architecture.md)
+- [QA 測試報告模板](./docs/templates/QA_Test_Report_Template.docx)
+
 ## 更新紀錄
 
 ### 2026-03-04
+- **feat**: `ReportsPage.jsx` 報告檢視頁，支援歷史紀錄查詢、PASS/FAIL 篩選、搜尋、CSV 下載
+- **feat**: 新增 `docs/templates/QA_Test_Report_Template.docx` — 對外 QA 測試報告空白模板（8 章節，含封面/目錄/簽名欄）
+- **feat**: 新增 `backend/templates/QA_Test_Report_Template.docx` — 供未來後端半自動填入使用
 - **feat**: `standards.py` 重構為三層 `STANDARD_TREE`，新增 IEC 60068 完整系列
 - **feat**: EN 50155:2017 OT1~OT6 各高溫/低溫分開、ST1 開機延伸、快速溫度變化
 - **feat**: IEC 61850-3 Ed.2 Class C1/C2/C3；DNV CG-0339:2019 Class A/B/C/D
@@ -82,10 +99,6 @@ make dev
 ### 2026-03-02
 - 整合 EN50155、IEC60068 環境測試標準
 - 動態 SOP 管理系統與前端列表動態載入
-
-## 延伸文件
-
-- [系統架構與開發進度](./docs/architecture.md)
 
 ## 授權
 
