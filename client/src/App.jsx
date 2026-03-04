@@ -7,6 +7,7 @@ import {
 } from "react-router-dom";
 import Dashboard from "./Dashboard";
 import SOPPage from "./SOPPage";
+import ErrorLog from "./ErrorLog";
 
 const NavBar = () => {
   const location = useLocation();
@@ -50,6 +51,9 @@ const NavBar = () => {
       <Link to="/sop" style={linkStyle("/sop")}>
         SOP 執行
       </Link>
+      <Link to="/errors" style={linkStyle("/errors")}>
+        異常看板
+      </Link>
     </nav>
   );
 };
@@ -70,6 +74,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/sop" element={<SOPPage />} />
+            <Route path="/errors" element={<ErrorLog />} />
           </Routes>
         </main>
       </div>

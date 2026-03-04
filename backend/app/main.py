@@ -6,7 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from .sop import router as sop_router
 from .sop_execution import router as execution_router
 from .reports import router as reports_router
-from .models import SessionLocal, DeviceData
+from .errors import router as errors_router
+from .models import SessionLocal, DeviceData, ErrorLog
 from .standards import get_ramp_rate, get_standard
 
 app = FastAPI(title="KSON AICM Digital Twin Server")
@@ -15,6 +16,7 @@ background_tasks = set()
 app.include_router(sop_router, prefix="/api/sop", tags=["sop"])
 app.include_router(execution_router)
 app.include_router(reports_router)
+app.include_router(errors_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -31,12 +33,35 @@ app.add_middleware(
 
 @app.post("/api/stop/emergency")
 async def emergency_stop():
-    """🚨 緊急停止"""
+    """🚨 緊急停止，並寫入異常紀錄"""
     cache = app.state.AICM_CACHE
-    for device_id in cache:
-        cache[device_id]["status"] = "EMERGENCY"
-        cache[device_id]["running_sop_id"] = None
-        cache[device_id]["running_sop_name"] = "🚨 緊急停止中 - 待確認安全"
+    db = SessionLocal()
+    try:
+        for device_id in cache:
+            item = cache[device_id]
+            # 寫入異常紀錄
+            db.add(
+                ErrorLog(
+                    device_id=device_id,
+                    error_type="EMERGENCY",
+                    sop_id=item.get("running_sop_id"),
+                    sop_name=item.get("running_sop_name"),
+                    temperature=item.get("temperature"),
+                    humidity=item.get("humidity"),
+                    note="操作人員觸發緊急停止",
+                    created_at=datetime.datetime.now(),
+                )
+            )
+            item["status"] = "EMERGENCY"
+            item["running_sop_id"] = None
+            item["running_sop_name"] = "🚨 緊急停止中 - 待確認安全"
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"❌ [ErrorLog] 寫入失敗: {e}")
+    finally:
+        db.close()
+
     print("🚨 [ALERT] EMERGENCY STOP ACTIVATED.")
     return {"status": "success", "message": "Emergency activated"}
 
@@ -167,7 +192,6 @@ async def data_simulator():
                         current_temp + random.uniform(-0.05, 0.05), 2
                     )
 
-                # 每 10 秒寫一次
                 write_counter += 1
                 if write_counter >= 10 and status in [
                     "RUNNING",

@@ -3,7 +3,6 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker, Mapped, mapped_column
 import datetime
 from typing import Optional
 
-# 資料庫連線設定
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
@@ -66,6 +65,23 @@ class DeviceData(Base):
     temperature: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     humidity: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     raw_data: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+# ---------- 異常紀錄 ----------
+class ErrorLog(Base):
+    __tablename__ = "error_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    device_id: Mapped[str] = mapped_column(String, index=True)
+    error_type: Mapped[str] = mapped_column(String)  # EMERGENCY / SENSOR_ERROR 等
+    sop_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    sop_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    temperature: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    humidity: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc)
+    )
 
 
 # ---------- 資料庫初始化 ----------
