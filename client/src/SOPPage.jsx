@@ -1,5 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import "./SOPPage.css";
 
 const API = "http://localhost:8000";
@@ -12,6 +20,7 @@ const SAFETY_CHECKS = [
 ];
 
 const ACTIVE_STATUSES = ["RUNNING", "PAUSED"];
+const MAX_CHART_POINTS = 60;
 
 // ─── 測試條件摘要卡 ───────────────────────────────────────────
 const ConditionCard = ({ test }) => {
@@ -106,7 +115,6 @@ const SelectGroup = ({ step, title, items, selected, onSelect, accent }) => {
   const isDone = !!selected;
   return (
     <div style={{ marginBottom: 16 }}>
-      {/* 標題列 */}
       <div
         style={{
           display: "flex",
@@ -145,8 +153,6 @@ const SelectGroup = ({ step, title, items, selected, onSelect, accent }) => {
           {title}
         </span>
       </div>
-
-      {/* 選項按鈕 */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
         {items.map(([key, label]) => {
           const active = selected === key;
@@ -176,9 +182,58 @@ const SelectGroup = ({ step, title, items, selected, onSelect, accent }) => {
   );
 };
 
+// ─── 即時溫度折線圖 ───────────────────────────────────────────
+const TempChart = ({ data }) => {
+  if (!data || data.length < 2)
+    return (
+      <div
+        style={{
+          height: 80,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#484f58",
+          fontSize: 11,
+        }}
+      >
+        等待數據...
+      </div>
+    );
+  return (
+    <ResponsiveContainer width="100%" height={80}>
+      <LineChart
+        data={data}
+        margin={{ top: 4, right: 4, bottom: 0, left: -30 }}
+      >
+        <XAxis dataKey="t" hide />
+        <YAxis
+          domain={["auto", "auto"]}
+          tick={{ fontSize: 9, fill: "#484f58" }}
+        />
+        <Tooltip
+          contentStyle={{
+            background: "#161b22",
+            border: "1px solid #30363d",
+            fontSize: 11,
+          }}
+          labelFormatter={() => ""}
+          formatter={(v) => [`${v.toFixed(1)} °C`, "溫度"]}
+        />
+        <Line
+          type="monotone"
+          dataKey="temp"
+          stroke="#ff7b72"
+          dot={false}
+          strokeWidth={1.5}
+          isAnimationActive={false}
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+};
+
 // ─── 主元件 ───────────────────────────────────────────────────
 const SOPPage = () => {
-  // ── 即時數據 ──
   const [data, setData] = useState({
     status: "OFFLINE",
     temperature: 0.0,
@@ -188,13 +243,15 @@ const SOPPage = () => {
     timestamp: "--:--:--",
   });
 
-  // ── 三層選擇 ──
+  // 折線圖歷史數據
+  const [tempHistory, setTempHistory] = useState([]);
+  const tickRef = useRef(0);
+
   const [standardTree, setStandardTree] = useState({});
   const [selectedStd, setSelectedStd] = useState(null);
   const [selectedVer, setSelectedVer] = useState(null);
   const [selectedTest, setSelectedTest] = useState(null);
 
-  // ── 執行狀態 ──
   const [activeSop, setActiveSop] = useState(null);
   const [completedSteps, setCompletedSteps] = useState({});
   const [savedExecutionId, setSavedExecutionId] = useState(null);
@@ -205,8 +262,8 @@ const SOPPage = () => {
     false,
   ]);
 
-  // ── 衍生值 ──
   const isActive = ACTIVE_STATUSES.includes(data.status);
+  const isOffline = data.status === "OFFLINE";
   const allChecked = safetyChecked.every(Boolean);
   const totalSteps = activeSop?.steps?.length ?? 0;
   const doneCnt = Object.values(completedSteps).filter(Boolean).length;
@@ -223,7 +280,6 @@ const SOPPage = () => {
     ? Object.entries(verData.tests).map(([k, v]) => [k, v.name])
     : [];
 
-  // ── API ──
   useEffect(() => {
     axios
       .get(`${API}/api/sop/standards/tree`)
@@ -235,13 +291,24 @@ const SOPPage = () => {
     const t = setInterval(() => {
       axios
         .get(`${API}/api/latest`)
-        .then((r) => setData(r.data))
+        .then((r) => {
+          setData(r.data);
+          tickRef.current += 1;
+          setTempHistory((prev) => {
+            const next = [
+              ...prev,
+              { t: tickRef.current, temp: r.data.temperature },
+            ];
+            return next.length > MAX_CHART_POINTS
+              ? next.slice(-MAX_CHART_POINTS)
+              : next;
+          });
+        })
         .catch(() => {});
     }, 1000);
     return () => clearInterval(t);
   }, []);
 
-  // 切換法規時清除下層選擇
   const handleSelectStd = (key) => {
     setSelectedStd(key);
     setSelectedVer(null);
@@ -252,29 +319,23 @@ const SOPPage = () => {
     setSelectedTest(null);
   };
 
-  // ── 啟動測試 ──
   const startSop = async () => {
     if (!testData) return;
     try {
-      // 1. 啟動 SOP
       await axios.post(`${API}/api/sop/start`, {
         sop_id: testData.sop_id,
         device_id: "KSON_CH01",
       });
-
-      // 2. 從 /api/sop/ 拿完整步驟清單（tree API 不含 steps）
       let steps = [];
       try {
         const sopList = await axios.get(`${API}/api/sop/`);
         const full = sopList.data.find((s) => s.sop_id === testData.sop_id);
-        if (full && Array.isArray(full.steps) && full.steps.length > 0) {
+        if (full && Array.isArray(full.steps) && full.steps.length > 0)
           steps = full.steps;
-        }
       } catch {
-        /* 撈不到就用備案 */
+        /* 備案 */
       }
 
-      // 3. 撈不到時的備案步驟
       if (steps.length === 0) {
         steps = [
           {
@@ -309,16 +370,14 @@ const SOPPage = () => {
           },
         ];
       }
-
       setActiveSop({ ...testData, steps });
-      setCompletedSteps({ 1: true, 2: true }); // 前兩步自動勾選
+      setCompletedSteps({ 1: true, 2: true });
       setSavedExecutionId(null);
     } catch {
       alert("啟動程序失敗，請確認後端是否正常運作。");
     }
   };
 
-  // ── 系統控制 ──
   const handleAction = async (type) => {
     await axios.post(`${API}/api/stop/${type}`);
     if (type === "normal" || type === "emergency") {
@@ -329,7 +388,6 @@ const SOPPage = () => {
     }
   };
 
-  // ── 儲存紀錄 ──
   const saveExecution = async () => {
     try {
       const steps = activeSop.steps.map((s) => ({
@@ -350,10 +408,9 @@ const SOPPage = () => {
   const downloadReport = () =>
     window.open(`${API}/api/reports/csv/${savedExecutionId}`, "_blank");
 
-  // ─────────────────────────────────────────────────────────────
   return (
     <div className="sop-page-layout">
-      {/* ══ 左側：監控區 (40%) ══ */}
+      {/* ══ 左側：監控區 ══ */}
       <aside className="monitor-side">
         <div className="brand-box">
           <h1 className="main-title">KSON AICM | Digital Twin</h1>
@@ -367,7 +424,11 @@ const SOPPage = () => {
         <div className="info-card highlight">
           <label>CURRENT MISSION</label>
           <div className="value-large" style={{ fontSize: 13 }}>
-            {isActive ? data.running_sop_name || "執行中" : "STANDBY (IDLE)"}
+            {isActive
+              ? data.running_sop_name || "執行中"
+              : isOffline
+                ? "等待後端連線"
+                : "STANDBY (IDLE)"}
           </div>
         </div>
 
@@ -379,6 +440,14 @@ const SOPPage = () => {
           </div>
         </div>
 
+        {/* 即時折線圖 */}
+        <div className="info-card" style={{ padding: "14px 16px 10px" }}>
+          <label style={{ fontSize: 11, color: "#484f58", letterSpacing: 1 }}>
+            TEMP TREND
+          </label>
+          <TempChart data={tempHistory} />
+        </div>
+
         <div className="info-card humi-card">
           <label>HUMI PV</label>
           <div className="value-pv">
@@ -388,32 +457,51 @@ const SOPPage = () => {
         </div>
       </aside>
 
-      {/* ══ 右側：操作區 (60%) ══ */}
+      {/* ══ 右側：操作區 ══ */}
       <main className="control-side">
         <div className="scroll-wrapper">
-          {/* ── 系統控制（永遠顯示）── */}
+          {/* ── 系統控制面板 ── */}
           <section className="operation-box">
             <div className="box-header">
               <span className="pulse-icon" />
               <h2>系統控制面板</h2>
             </div>
-            <p className="task-desc">{data.description}</p>
+            <p className="task-desc">
+              {isOffline
+                ? "⚠️ 後端未連線，請確認伺服器是否正常啟動。"
+                : data.description}
+            </p>
             <div className="btn-group-row">
               <button
                 className="ctrl-btn amber"
                 onClick={() => handleAction("pause")}
+                disabled={!isActive}
+                style={{
+                  opacity: isActive ? 1 : 0.35,
+                  cursor: isActive ? "pointer" : "not-allowed",
+                }}
               >
                 ⏸ 暫停切換
               </button>
               <button
                 className="ctrl-btn grey"
                 onClick={() => handleAction("normal")}
+                disabled={!isActive}
+                style={{
+                  opacity: isActive ? 1 : 0.35,
+                  cursor: isActive ? "pointer" : "not-allowed",
+                }}
               >
                 ⏹ 正常停止
               </button>
               <button
                 className="ctrl-btn red"
                 onClick={() => handleAction("emergency")}
+                disabled={isOffline}
+                style={{
+                  opacity: isOffline ? 0.35 : 1,
+                  cursor: isOffline ? "not-allowed" : "pointer",
+                }}
               >
                 🚨 緊急停止
               </button>
@@ -498,7 +586,6 @@ const SOPPage = () => {
                 {doneCnt} / {totalSteps} 步驟完成{allStepsDone && " ✅"}
               </div>
 
-              {/* 儲存按鈕 */}
               {allStepsDone && !savedExecutionId && (
                 <button
                   onClick={saveExecution}
@@ -519,7 +606,6 @@ const SOPPage = () => {
                 </button>
               )}
 
-              {/* 已儲存 + 下載 */}
               {savedExecutionId && (
                 <div
                   style={{
@@ -574,7 +660,6 @@ const SOPPage = () => {
                   <h2>選擇測試標準</h2>
                 </div>
 
-                {/* Step 1：法規 */}
                 <SelectGroup
                   step={1}
                   title="選擇法規"
@@ -587,7 +672,6 @@ const SOPPage = () => {
                   onSelect={handleSelectStd}
                 />
 
-                {/* Step 2：版本（有法規才顯示） */}
                 {stdData && (
                   <>
                     <div
@@ -617,7 +701,6 @@ const SOPPage = () => {
                   </>
                 )}
 
-                {/* Step 3：測試條件（有版本才顯示） */}
                 {verData && (
                   <>
                     <div
@@ -647,11 +730,9 @@ const SOPPage = () => {
                   </>
                 )}
 
-                {/* 測試條件摘要卡（有測試條件才顯示） */}
                 {testData && <ConditionCard test={testData} />}
               </section>
 
-              {/* ── 注意事項 + 啟動按鈕（選完測試條件才顯示）── */}
               {testData && (
                 <section
                   className="operation-box"
