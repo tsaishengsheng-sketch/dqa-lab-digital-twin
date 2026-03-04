@@ -3,6 +3,7 @@ import axios from "axios";
 import {
   LineChart,
   Line,
+  ReferenceLine,
   XAxis,
   YAxis,
   Tooltip,
@@ -21,6 +22,14 @@ const SAFETY_CHECKS = [
 
 const ACTIVE_STATUSES = ["RUNNING", "PAUSED"];
 const MAX_CHART_POINTS = 60;
+
+const STATUS_CONFIG = {
+  OFFLINE: { color: "#484f58", bg: "#21262d" },
+  IDLE: { color: "#8b949e", bg: "#21262d" },
+  RUNNING: { color: "#3fb950", bg: "#0f2318" },
+  PAUSED: { color: "#f0a500", bg: "#2d1f00" },
+  EMERGENCY: { color: "#f85149", bg: "#2d0f0f" },
+};
 
 // ─── 測試條件摘要卡 ───────────────────────────────────────────
 const ConditionCard = ({ test }) => {
@@ -182,8 +191,8 @@ const SelectGroup = ({ step, title, items, selected, onSelect, accent }) => {
   );
 };
 
-// ─── 即時溫度折線圖 ───────────────────────────────────────────
-const TempChart = ({ data }) => {
+// ─── 折線圖 ───────────────────────────────────────────────────
+const TempChart = ({ data, targetTemp }) => {
   if (!data || data.length < 2)
     return (
       <div
@@ -219,6 +228,14 @@ const TempChart = ({ data }) => {
           labelFormatter={() => ""}
           formatter={(v) => [`${v.toFixed(1)} °C`, "溫度"]}
         />
+        {targetTemp != null && (
+          <ReferenceLine
+            y={targetTemp}
+            stroke="#484f58"
+            strokeDasharray="4 2"
+            strokeWidth={1}
+          />
+        )}
         <Line
           type="monotone"
           dataKey="temp"
@@ -243,9 +260,9 @@ const SOPPage = () => {
     timestamp: "--:--:--",
   });
 
-  // 折線圖歷史數據
   const [tempHistory, setTempHistory] = useState([]);
   const tickRef = useRef(0);
+  const [emergencyFlash, setEmergencyFlash] = useState(false);
 
   const [standardTree, setStandardTree] = useState({});
   const [selectedStd, setSelectedStd] = useState(null);
@@ -264,6 +281,9 @@ const SOPPage = () => {
 
   const isActive = ACTIVE_STATUSES.includes(data.status);
   const isOffline = data.status === "OFFLINE";
+  const isEmergency = data.status === "EMERGENCY";
+  const canStop = isActive || isEmergency;
+
   const allChecked = safetyChecked.every(Boolean);
   const totalSteps = activeSop?.steps?.length ?? 0;
   const doneCnt = Object.values(completedSteps).filter(Boolean).length;
@@ -272,13 +292,26 @@ const SOPPage = () => {
   const stdData = selectedStd ? standardTree[selectedStd] : null;
   const verData = selectedVer ? stdData?.versions?.[selectedVer] : null;
   const testData = selectedTest ? verData?.tests?.[selectedTest] : null;
-
   const versionItems = stdData
     ? Object.entries(stdData.versions).map(([k, v]) => [k, v.label])
     : [];
   const testItems = verData
     ? Object.entries(verData.tests).map(([k, v]) => [k, v.name])
     : [];
+
+  const targetTemp =
+    activeSop?.low_temperature ?? activeSop?.high_temperature ?? null;
+  const sc = STATUS_CONFIG[data.status] || STATUS_CONFIG.OFFLINE;
+
+  // EMERGENCY 閃爍
+  useEffect(() => {
+    if (!isEmergency) {
+      setEmergencyFlash(false);
+      return;
+    }
+    const t = setInterval(() => setEmergencyFlash((f) => !f), 600);
+    return () => clearInterval(t);
+  }, [isEmergency]);
 
   useEffect(() => {
     axios
@@ -335,7 +368,6 @@ const SOPPage = () => {
       } catch {
         /* 備案 */
       }
-
       if (steps.length === 0) {
         steps = [
           {
@@ -410,13 +442,26 @@ const SOPPage = () => {
 
   return (
     <div className="sop-page-layout">
-      {/* ══ 左側：監控區 ══ */}
+      {/* ══ 左側 ══ */}
       <aside className="monitor-side">
         <div className="brand-box">
           <h1 className="main-title">KSON AICM | Digital Twin</h1>
           <div className="status-row">
             <span className={`status-dot ${data.status.toLowerCase()}`} />
-            <span className="status-label">{data.status}</span>
+            <span
+              style={{
+                padding: "2px 8px",
+                borderRadius: 4,
+                fontSize: 11,
+                fontWeight: 700,
+                color: sc.color,
+                background: sc.bg,
+                border: `1px solid ${sc.color}44`,
+                letterSpacing: 0.5,
+              }}
+            >
+              {data.status}
+            </span>
             <span className="update-time">{data.timestamp}</span>
           </div>
         </div>
@@ -426,13 +471,18 @@ const SOPPage = () => {
           <div className="value-large" style={{ fontSize: 13 }}>
             {isActive
               ? data.running_sop_name || "執行中"
-              : isOffline
-                ? "等待後端連線"
-                : "STANDBY (IDLE)"}
+              : isEmergency
+                ? "⚠️ 緊急停止已觸發"
+                : isOffline
+                  ? "等待後端連線"
+                  : "STANDBY (IDLE)"}
           </div>
         </div>
 
-        <div className="info-card temp-card">
+        <div
+          className="info-card temp-card"
+          style={{ borderLeft: "3px solid #ff7b72" }}
+        >
           <label>TEMP PV</label>
           <div className="value-pv">
             {data.temperature.toFixed(2)}
@@ -440,15 +490,17 @@ const SOPPage = () => {
           </div>
         </div>
 
-        {/* 即時折線圖 */}
         <div className="info-card" style={{ padding: "14px 16px 10px" }}>
           <label style={{ fontSize: 11, color: "#484f58", letterSpacing: 1 }}>
             TEMP TREND
           </label>
-          <TempChart data={tempHistory} />
+          <TempChart data={tempHistory} targetTemp={targetTemp} />
         </div>
 
-        <div className="info-card humi-card">
+        <div
+          className="info-card humi-card"
+          style={{ borderLeft: "3px solid #a5d6ff" }}
+        >
           <label>HUMI PV</label>
           <div className="value-pv">
             {data.humidity.toFixed(1)}
@@ -457,19 +509,46 @@ const SOPPage = () => {
         </div>
       </aside>
 
-      {/* ══ 右側：操作區 ══ */}
+      {/* ══ 右側 ══ */}
       <main className="control-side">
         <div className="scroll-wrapper">
-          {/* ── 系統控制面板 ── */}
-          <section className="operation-box">
+          {/* 系統控制面板 */}
+          <section
+            className="operation-box"
+            style={
+              isEmergency
+                ? {
+                    borderColor: emergencyFlash ? "#f85149" : "#30363d",
+                    background: emergencyFlash ? "#1a0a0a" : "#161b22",
+                    transition: "all 0.3s",
+                  }
+                : {}
+            }
+          >
             <div className="box-header">
               <span className="pulse-icon" />
               <h2>系統控制面板</h2>
+              <span
+                style={{
+                  marginLeft: "auto",
+                  padding: "2px 10px",
+                  borderRadius: 12,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: sc.color,
+                  background: sc.bg,
+                  border: `1px solid ${sc.color}44`,
+                }}
+              >
+                {data.status}
+              </span>
             </div>
             <p className="task-desc">
               {isOffline
                 ? "⚠️ 後端未連線，請確認伺服器是否正常啟動。"
-                : data.description}
+                : isEmergency
+                  ? "🚨 緊急停止已觸發，請確認設備安全後按正常停止。"
+                  : data.description}
             </p>
             <div className="btn-group-row">
               <button
@@ -486,10 +565,10 @@ const SOPPage = () => {
               <button
                 className="ctrl-btn grey"
                 onClick={() => handleAction("normal")}
-                disabled={!isActive}
+                disabled={!canStop}
                 style={{
-                  opacity: isActive ? 1 : 0.35,
-                  cursor: isActive ? "pointer" : "not-allowed",
+                  opacity: canStop ? 1 : 0.35,
+                  cursor: canStop ? "pointer" : "not-allowed",
                 }}
               >
                 ⏹ 正常停止
@@ -508,7 +587,7 @@ const SOPPage = () => {
             </div>
           </section>
 
-          {/* ══ 執行中：步驟清單 ══ */}
+          {/* 執行中步驟清單 */}
           {isActive && activeSop && (
             <section
               className="operation-box"
@@ -576,14 +655,35 @@ const SOPPage = () => {
                 </label>
               ))}
 
-              <div
-                style={{
-                  color: allStepsDone ? "#57ab5a" : "#8b949e",
-                  fontSize: 12,
-                  marginTop: 4,
-                }}
-              >
-                {doneCnt} / {totalSteps} 步驟完成{allStepsDone && " ✅"}
+              {/* 進度條 */}
+              <div style={{ marginTop: 8, marginBottom: 4 }}>
+                <div
+                  style={{
+                    height: 4,
+                    background: "#21262d",
+                    borderRadius: 2,
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      height: "100%",
+                      borderRadius: 2,
+                      background: allStepsDone ? "#57ab5a" : "#58a6ff",
+                      width: `${totalSteps > 0 ? (doneCnt / totalSteps) * 100 : 0}%`,
+                      transition: "width 0.3s ease",
+                    }}
+                  />
+                </div>
+                <div
+                  style={{
+                    color: allStepsDone ? "#57ab5a" : "#8b949e",
+                    fontSize: 12,
+                    marginTop: 6,
+                  }}
+                >
+                  {doneCnt} / {totalSteps} 步驟完成{allStepsDone && " ✅"}
+                </div>
               </div>
 
               {allStepsDone && !savedExecutionId && (
@@ -648,7 +748,7 @@ const SOPPage = () => {
             </section>
           )}
 
-          {/* ══ 待機中：三步驟選擇器 ══ */}
+          {/* 待機：三步驟選擇器 */}
           {!isActive && (
             <>
               <section
@@ -659,7 +759,6 @@ const SOPPage = () => {
                   <span>🔬</span>
                   <h2>選擇測試標準</h2>
                 </div>
-
                 <SelectGroup
                   step={1}
                   title="選擇法規"
@@ -671,7 +770,6 @@ const SOPPage = () => {
                   selected={selectedStd}
                   onSelect={handleSelectStd}
                 />
-
                 {stdData && (
                   <>
                     <div
@@ -700,7 +798,6 @@ const SOPPage = () => {
                     />
                   </>
                 )}
-
                 {verData && (
                   <>
                     <div
@@ -729,7 +826,6 @@ const SOPPage = () => {
                     />
                   </>
                 )}
-
                 {testData && <ConditionCard test={testData} />}
               </section>
 
@@ -747,7 +843,6 @@ const SOPPage = () => {
                   >
                     啟動測試前，請確認以下所有項目：
                   </p>
-
                   {SAFETY_CHECKS.map((item, i) => (
                     <label
                       key={i}
@@ -779,7 +874,6 @@ const SOPPage = () => {
                       </span>
                     </label>
                   ))}
-
                   {allChecked ? (
                     <p style={{ color: "#57ab5a", fontSize: 12, marginTop: 6 }}>
                       ✅ 所有注意事項已確認，可以啟動測試
@@ -789,7 +883,6 @@ const SOPPage = () => {
                       ⚠️ 請確認所有注意事項後才能啟動測試
                     </p>
                   )}
-
                   <button
                     onClick={startSop}
                     disabled={!allChecked}
