@@ -478,7 +478,7 @@ STANDARD_TREE (standards.py)
 
 ### 2026-03-04
 - **feat**: `ReportsPage.jsx` 報告檢視頁，統計卡列、搜尋篩選、左右雙欄詳情、CSV 下載
-- **feat**: 新增 `docs/templates/QA_Test_Report_Template.docx` — 對外 QA 測試報告模板（
+- **feat**: 新增 `docs/templates/QA_Test_Report_Template.docx` — 對外 QA 測試報告模板
 - **feat**: 新增 `backend/templates/QA_Test_Report_Template.docx` — 供未來後端半自動填入使用
 - **feat**: `standards.py` 重構為三層巢狀 `STANDARD_TREE`，新增 IEC 60068 完整系列（Test Ab/Ad/Ba/Bb/Na/Nb/Db）
 - **feat**: EN 50155:2017 新增 OT1~OT6 各高溫/低溫分開、ST1 開機延伸溫度、快速溫度變化測試
