@@ -24,9 +24,6 @@
 ## Demo
 ![Demo](docs/screenshots/demo.gif)
 
-### ISO 17025 CSV 報告輸出
-![CSV 報告](docs/screenshots/07_csv_report.png)
-
 ## 支持的環境測試標準（62 個測試條件）
 
 | 法規 | 版本 | 測試數 | 主要測試項目 |
