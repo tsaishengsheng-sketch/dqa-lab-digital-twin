@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-03-04（續）
+
+- **feat**: 新增 `ErrorLog` 表（`models.py`），記錄緊急停止事件
+- **feat**: 新增 `errors.py` router，`GET /api/errors/` 回傳所有異常紀錄
+- **feat**: `emergency_stop()` 觸發時自動寫入 device_id、error_type、當下溫濕度、執行中 SOP（`main.py`）
+- **feat**: 新增「異常看板」頁面（`ErrorLog.jsx`），顯示統計卡片與完整紀錄列表
+- **feat**: `App.jsx` 導航列新增「異常看板」入口，active 頁面高亮
+- **feat**: `Dashboard.jsx` 統一 GitHub dark 主題，新增執行紀錄列表與一鍵下載 CSV
+- **feat**: `SOPPage.jsx` 新增即時 TEMP TREND 折線圖（含目標溫度虛線）、EMERGENCY 閃爍、狀態 badge、步驟進度條
+- **fix**: 緊急停止後正常停止按鈕可用（`canStop = isActive || isEmergency`）
+- **fix**: TEMP/HUMI 卡片加左側 accent 色邊框
+
+---
+
 ## 2026-03-04
 
 - **feat**: 新增 `docs/templates/QA_Test_Report_Template.docx` — 對外 QA 測試報告空白模板（8 章節，含封面/目錄/簽名欄，已移除商標）

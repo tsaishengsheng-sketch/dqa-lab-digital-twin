@@ -25,8 +25,11 @@
     * **✅ 上架安全確認**: 四項注意事項全勾才能啟動測試。
     * **✅ 即時溫度折線圖**: 左側面板顯示 60 秒 TEMP TREND，執行中顯示目標溫度虛線參考。
     * **✅ EMERGENCY 閃爍**: 緊急停止時控制面板紅色閃爍提示。
+* **✅ 異常看板 (ErrorLog)**:
+    * 統計卡片：緊急停止總次數、最近異常時間、涉及設備。
+    * 完整紀錄列表：ID、設備、類型 badge、執行中 SOP、當下溫濕度、備註、時間。
+    * 統一 GitHub dark 主題。
 * **⏳ 治具管理 (Fixtures)**: 治具清單、借用狀態追蹤。
-* **⏳ 異常看板 (Issues)**: 數據偏差告警、設備 Error Code 紀錄。
 * **⏳ 設備管理 (Devices)**: 15 台溫箱狀態總覽。
 * **⏳ 使用者中心 (User)**: 權限控管、個人執行紀錄。
 
@@ -46,14 +49,14 @@
 | GET  | `/api/sop-executions/{id}` | 讀取指定執行紀錄 |
 | GET  | `/api/reports/csv/{execution_id}` | 下載 ISO 17025 格式 CSV 測試報告（big5 編碼，Excel 相容） |
 | GET  | `/api/reports/list` | 所有執行紀錄列表 |
+| GET  | `/api/errors/` | 異常紀錄列表（最新在前） |
 | POST | `/api/stop/pause` | `RUNNING ↔ PAUSED` 切換 |
 | POST | `/api/stop/normal` | 進入 `FINISHING`，降溫完成後自動回 `IDLE` |
-| POST | `/api/stop/emergency` | 強制進入 `EMERGENCY` 狀態 |
+| POST | `/api/stop/emergency` | 強制進入 `EMERGENCY`，自動寫入異常紀錄 |
 
 ### 規劃中 ⏳
 * **`/api/auth`** — JWT 登入驗證
 * **`/api/devices`** — 15 台溫箱管理（動態 device_id）
-* **`/api/errors`** — 故障記錄查詢
 
 ---
 
@@ -106,15 +109,19 @@ STANDARD_TREE
 * **每 10 秒寫一次資料庫**（原每秒，優化後減少 90% 寫入量）
 * **自動清理 7 天前舊數據**（每次寫入後執行 `_cleanup_old_data()`）
 * `FINISHING` 狀態自動降溫至 25°C 後回 `IDLE`
-* `EMERGENCY` 狀態微幅抖動（不主動降溫）
+* `EMERGENCY` 狀態微幅抖動（不主動降溫），觸發時自動寫入 `error_logs`
 * ±0.1°C 隨機抖動增加真實感
+
+### 異常紀錄引擎 (errors.py) ✅
+* `ErrorLog` 表記錄：device_id、error_type、sop_id、sop_name、temperature、humidity、note、created_at
+* `GET /api/errors/` 回傳所有紀錄，最新在前
+* 目前 error_type：`EMERGENCY`（未來可擴充 `SENSOR_ERROR`、`OVERTEMP` 等）
 
 ### 測試報告引擎 (reports.py) ✅
 * 符合 **ISO/IEC 17025:2017** 格式，共 7 節
 * 報告節次：識別資訊 → 樣品資訊 → 測試條件 → 步驟記錄 → 統計摘要 → PASS/FAIL 自動判定 → 原始數據
 * 容差判定從各標準 `temp_tolerance` / `humi_tolerance` 讀取（非寫死）
 * **big5 編碼**，macOS / Windows Excel 中文正確顯示
-* 溫度數值 `round(value, 2)` 防止浮點數精度問題
 * 報告命名：`RPT-YYYYMMDD-{id:03d}_{sop_id}.csv`
 
 ### 報告兩層架構
@@ -133,8 +140,6 @@ STANDARD_TREE
             → 發給客戶 / 認證機構
 ```
 
-> 模板同時存放於 `backend/templates/` 供未來後端半自動填入功能使用。
-
 ### 資料庫表格 (SQLite)
 
 | 表格 | 狀態 | 說明 |
@@ -143,9 +148,9 @@ STANDARD_TREE
 | `sop_executions` | ✅ | 執行歷程主表 |
 | `step_records` | ✅ | 每步驟完成狀態 |
 | `sop_templates` | ✅ | 自訂 SOP（DB 版，補充 standards.py） |
+| `error_logs` | ✅ | 緊急停止事件紀錄（device_id、溫濕度、SOP） |
 | `devices` | ⏳ | 15 台設備身分與狀態 |
 | `users` | ⏳ | 使用者權限管理 |
-| `error_logs` | ⏳ | 故障記錄（緊急停止事件） |
 
 ---
 
@@ -185,6 +190,7 @@ STANDARD_TREE (standards.py)
                 GET /api/reports/csv/{id}（下載 ISO 17025 報告）
                         │
         正常停止 → FINISHING → 自動降溫 → IDLE → 回待機畫面
+        緊急停止 → EMERGENCY → 自動寫入 error_logs → 等待正常停止
 ```
 
 ---
@@ -202,14 +208,14 @@ STANDARD_TREE (standards.py)
 | 暫停/停止邏輯 | ✅ | RUNNING↔PAUSED，FINISHING→IDLE，EMERGENCY 修復 |
 | EMERGENCY 閃爍 | ✅ | 控制面板紅色閃爍提示 |
 | 即時折線圖 | ✅ | SOPPage 左側 TEMP TREND，含目標溫度虛線 |
+| 異常看板 | ✅ | 緊急停止自動記錄，統計卡片 + 列表 |
 | 環境測試標準 | ✅ | 6 法規，62 個測試條件，官方參數 |
 | 物理模擬引擎 | ✅ | 標準化升降溫，每 10 秒寫 DB |
 | DB 自動清理 | ✅ | 保留最近 7 天數據 |
 | 執行紀錄 API | ✅ | sop_execution router |
-| CSV 測試報告 | ✅ | ISO 17025 格式，PASS/FAIL 判定 |
-| 報告下載按鈕 | ✅ | 儲存後顯示，big5 Excel 相容 |
+| CSV 測試報告 | ✅ | ISO 17025 格式，big5 Excel 相容 |
 | 對外報告模板 | ✅ | QA_Test_Report_Template.docx，兩層架構 |
 | 多台設備架構 | ⏳ | 動態 device_id，15 台溫箱 |
-| 故障記錄與通報 | ⏳ | error_logs 表，Email 通報 |
+| 故障通報 | ⏳ | Email 通報（error_logs 已就緒） |
 | 認證系統 | ⏳ | JWT |
 | RS-485 真實通訊 | ⏳ | Phase 3 |
