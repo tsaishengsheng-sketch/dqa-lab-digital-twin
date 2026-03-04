@@ -6,20 +6,27 @@
 
 ## 📁 客戶端 (Browser) - React 前端模塊
 
-* **✅ 全域路由控制 (App Router)**: 由 `App.jsx` 統一管理頂部導航列。
-* **✅ 儀表板 (Dashboard)**: 即時趨勢圖、最新數值顯示，統一使用 axios，支援 RUNNING/PAUSED/FINISHING/EMERGENCY/IDLE/OFFLINE 六種狀態顏色。
+* **✅ 全域路由控制 (App Router)**: 由 `App.jsx` 統一管理頂部導航列，active 頁面高亮顯示。
+* **✅ 儀表板 (Dashboard)**:
+    * 即時溫濕度大字顯示，TEMP/HUMI 各自 accent 色邊框。
+    * 60 秒趨勢折線圖（溫度 + 濕度雙線）。
+    * 六種狀態 badge 顏色區分（RUNNING / PAUSED / FINISHING / EMERGENCY / IDLE / OFFLINE）。
+    * 歷史執行紀錄列表，每筆可直接下載 ISO 17025 CSV 報告。
+    * 統一 GitHub dark 主題，與 SOPPage 風格一致。
 * **✅ SOP 執行頁 (SOPPage)**:
     * 採用 **40/60 雙欄佈局**：左側數據監控、右側操作面板。
     * **✅ 三步驟法規選擇 UI**：法規 → 版本/Class → 測試條件，從 `/api/sop/standards/tree` 動態載入，選定後顯示完整測試條件說明。
     * **✅ 狀態自動切換**: 待機顯示注意事項 + SOP 列表；執行中顯示步驟清單，兩種畫面自動切換。
     * **✅ 暫停切換邏輯**: `RUNNING ↔ PAUSED` 真正來回切換。
     * **✅ 停止後回待機**: 正常停止 / 緊急停止後前端正確切回待機畫面。
-    * **✅ SOP 步驟追蹤**: 依各標準客制化步驟數，Step 1、2 自動勾選，其餘人工確認。
+    * **✅ 緊急停止修復**: `EMERGENCY` 狀態下正常停止按鈕可用（`canStop = isActive || isEmergency`）。
+    * **✅ SOP 步驟追蹤**: 依各標準客制化步驟數，Step 1、2 自動勾選，其餘人工確認，含進度條顯示。
     * **✅ 儲存 + 下載**: 全步驟完成後可儲存執行紀錄，儲存後顯示「下載 CSV 測試報告」按鈕。
     * **✅ 上架安全確認**: 四項注意事項全勾才能啟動測試。
+    * **✅ 即時溫度折線圖**: 左側面板顯示 60 秒 TEMP TREND，執行中顯示目標溫度虛線參考。
+    * **✅ EMERGENCY 閃爍**: 緊急停止時控制面板紅色閃爍提示。
 * **⏳ 治具管理 (Fixtures)**: 治具清單、借用狀態追蹤。
 * **⏳ 異常看板 (Issues)**: 數據偏差告警、設備 Error Code 紀錄。
-* **⏳ 報告檢視 (Reports)**: 測試結果總結、歷史執行紀錄查詢。
 * **⏳ 設備管理 (Devices)**: 15 台溫箱狀態總覽。
 * **⏳ 使用者中心 (User)**: 權限控管、個人執行紀錄。
 
@@ -33,7 +40,7 @@
 |------|------|------|
 | GET  | `/api/latest` | 即時溫濕度與狀態（每秒輪詢） |
 | GET  | `/api/sop/` | SOP 列表（從 STANDARD_TREE 自動展開） |
-| GET  | `/api/sop/standards/tree` | 完整三層標準樹（法規→版本→測試條件），供前端 UI 使用 |
+| GET  | `/api/sop/standards/tree` | 完整三層標準樹（法規→版本→測試條件），供前端 UI 三步驟選擇使用 |
 | POST | `/api/sop/start` | 啟動 SOP，更新 AICM_CACHE 狀態 |
 | POST | `/api/sop-executions/` | 儲存 SOP 執行紀錄（含步驟完成狀態） |
 | GET  | `/api/sop-executions/{id}` | 讀取指定執行紀錄 |
@@ -104,7 +111,7 @@ STANDARD_TREE
 
 ### 測試報告引擎 (reports.py) ✅
 * 符合 **ISO/IEC 17025:2017** 格式，共 7 節
-* 報告節次：識別資訊 → 樣品資訊 → 測試條件 → 步驟記錄 → 統計摘要 → **PASS/FAIL 自動判定** → 原始數據
+* 報告節次：識別資訊 → 樣品資訊 → 測試條件 → 步驟記錄 → 統計摘要 → PASS/FAIL 自動判定 → 原始數據
 * 容差判定從各標準 `temp_tolerance` / `humi_tolerance` 讀取（非寫死）
 * **big5 編碼**，macOS / Windows Excel 中文正確顯示
 * 溫度數值 `round(value, 2)` 防止浮點數精度問題
@@ -186,13 +193,15 @@ STANDARD_TREE (standards.py)
 
 | 模組 | 狀態 | 說明 |
 |------|------|------|
-| 前端路由 | ✅ | App.jsx 統一管理 |
-| 儀表板 | ✅ | 六種狀態顏色，統一 axios |
+| 前端路由 | ✅ | App.jsx 統一管理，active 頁面高亮 |
+| 儀表板 | ✅ | 即時監控、趨勢圖、六種狀態、執行紀錄列表 |
 | SOP 三步驟法規選擇 | ✅ | 法規→版本→測試條件，動態載入 |
 | SOP 執行畫面切換 | ✅ | 待機/執行中自動切換 |
-| SOP 步驟追蹤 | ✅ | 客制化步驟，啟動自動勾選前兩步 |
+| SOP 步驟追蹤 | ✅ | 客制化步驟，啟動自動勾選前兩步，進度條 |
 | 上架安全確認 | ✅ | 四項全勾才能啟動 |
-| 暫停/停止邏輯 | ✅ | RUNNING↔PAUSED，FINISHING→IDLE |
+| 暫停/停止邏輯 | ✅ | RUNNING↔PAUSED，FINISHING→IDLE，EMERGENCY 修復 |
+| EMERGENCY 閃爍 | ✅ | 控制面板紅色閃爍提示 |
+| 即時折線圖 | ✅ | SOPPage 左側 TEMP TREND，含目標溫度虛線 |
 | 環境測試標準 | ✅ | 6 法規，62 個測試條件，官方參數 |
 | 物理模擬引擎 | ✅ | 標準化升降溫，每 10 秒寫 DB |
 | DB 自動清理 | ✅ | 保留最近 7 天數據 |
