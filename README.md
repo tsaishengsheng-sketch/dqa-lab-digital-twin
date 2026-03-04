@@ -23,13 +23,26 @@
 
 ## 系統截圖
 
-| 三步驟選擇標準 | 安全確認（鎖定） | 安全確認（就緒） |
-|:---:|:---:|:---:|
-| ![](docs/screenshots/01_select_standard.png) | ![](docs/screenshots/02_safety_check_locked.png) | ![](docs/screenshots/03_safety_check_ready.png) |
+**① 三步驟選擇測試標準**
+![選擇標準](docs/screenshots/01_select_standard.png)
 
-| 測試執行中 | 步驟完成 | 儲存並下載報告 |
-|:---:|:---:|:---:|
-| ![](docs/screenshots/04_running.png) | ![](docs/screenshots/05_complete.png) | ![](docs/screenshots/06_save_download.png) |
+**② 上架驗證安全確認（鎖定中）**
+![安全確認鎖定](docs/screenshots/02_safety_check_locked.png)
+
+**③ 上架驗證安全確認（就緒）**
+![安全確認就緒](docs/screenshots/03_safety_check_ready.png)
+
+**④ 測試執行中（RUNNING）**
+![測試執行中](docs/screenshots/04_running.png)
+
+**⑤ 步驟全部完成**
+![步驟完成](docs/screenshots/05_complete.png)
+
+**⑥ 儲存紀錄並下載報告**
+![儲存下載](docs/screenshots/06_save_download.png)
+
+**⑦ ISO 17025 CSV 報告輸出**
+![CSV報告](docs/screenshots/07_csv_report.png)
 
 ### ISO 17025 CSV 報告輸出
 ![CSV 報告](docs/screenshots/07_csv_report.png)
