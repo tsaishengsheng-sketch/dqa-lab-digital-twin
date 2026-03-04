@@ -21,7 +21,18 @@
 - **ISO 17025 測試報告** — 7 節格式，PASS/FAIL 自動判定，big5 編碼 Excel 相容
 - **上架安全確認** — 啟動前強制確認四項注意事項，全勾才能啟動
 
+## 系統截圖
 
+| 三步驟選擇標準 | 安全確認（鎖定） | 安全確認（就緒） |
+|:---:|:---:|:---:|
+| ![](docs/screenshots/01_select_standard.png) | ![](docs/screenshots/02_safety_check_locked.png) | ![](docs/screenshots/03_safety_check_ready.png) |
+
+| 測試執行中 | 步驟完成 | 儲存並下載報告 |
+|:---:|:---:|:---:|
+| ![](docs/screenshots/04_running.png) | ![](docs/screenshots/05_complete.png) | ![](docs/screenshots/06_save_download.png) |
+
+### ISO 17025 CSV 報告輸出
+![CSV 報告](docs/screenshots/07_csv_report.png)
 
 ## 支持的環境測試標準（62 個測試條件）
 
