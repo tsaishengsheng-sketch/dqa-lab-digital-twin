@@ -22,29 +22,28 @@ app.add_middleware(
 )
 
 
-# --- 核心控制接口 ---
+# ============================================================
+# 核心控制 API
+# ============================================================
 
 
 @app.post("/api/stop/emergency")
 async def emergency_stop():
-    """🚨 緊急停止：中斷所有輸出"""
+    """🚨 緊急停止"""
     cache = app.state.AICM_CACHE
     for device_id in cache:
         cache[device_id]["status"] = "EMERGENCY"
         cache[device_id]["running_sop_id"] = None
         cache[device_id]["running_sop_name"] = "🚨 緊急停止中 - 待確認安全"
-    print("\n" + "!" * 60)
     print("🚨 [ALERT] EMERGENCY STOP ACTIVATED.")
-    print("📢 [SYSTEM] 設備輸出已中斷，等待操作員確認降溫指令。")
-    print("!" * 60 + "\n")
     return {"status": "success", "message": "Emergency activated"}
 
 
 @app.post("/api/stop/pause")
 async def pause_test():
+    """⏸ 暫停切換：RUNNING ↔ PAUSED"""
     cache = app.state.AICM_CACHE
     for device_id in cache:
-        # 暫停切換：RUNNING ↔ PAUSED
         if cache[device_id]["status"] == "RUNNING":
             cache[device_id]["status"] = "PAUSED"
         elif cache[device_id]["status"] == "PAUSED":
@@ -54,7 +53,7 @@ async def pause_test():
 
 @app.post("/api/stop/normal")
 async def normal_stop():
-    """⏹️ 正常停止：進入收尾降溫模式"""
+    """⏹ 正常停止：進入收尾降溫，完成後自動回 IDLE"""
     cache = app.state.AICM_CACHE
     for device_id in cache:
         cache[device_id]["status"] = "FINISHING"
@@ -64,6 +63,7 @@ async def normal_stop():
 
 @app.get("/api/latest")
 async def get_latest():
+    """取得最新溫濕度與狀態"""
     cache = app.state.AICM_CACHE
 
     if not cache or "KSON_CH01" not in cache:
@@ -79,18 +79,14 @@ async def get_latest():
     data = cache["KSON_CH01"]
     status = data.get("status", "OFFLINE")
 
-    if status == "RUNNING":
-        description = f"正在執行：{data.get('running_sop_name')}。溫度按標準速率變化。"
-    elif status == "PAUSED":
-        description = f"已暫停：{data.get('running_sop_name')}。點擊暫停切換可繼續。"
-    elif status == "EMERGENCY":
-        description = "⚠️ 緊急停止已觸發，請確認設備安全後按正常停止。"
-    elif status == "FINISHING":
-        description = "測試已結束，正在自動降溫到 25°C，請稍候..."
-    elif status == "IDLE":
-        description = "系統待機中，請選擇 SOP 後點擊啟動。"
-    else:
-        description = "等待連線..."
+    descriptions = {
+        "RUNNING": f"正在執行：{data.get('running_sop_name')}。溫度按標準速率變化。",
+        "PAUSED": f"已暫停：{data.get('running_sop_name')}。點擊暫停切換可繼續。",
+        "EMERGENCY": "⚠️ 緊急停止已觸發，請確認設備安全後按正常停止。",
+        "FINISHING": "測試已結束，正在自動降溫到 25°C，請稍候...",
+        "IDLE": "系統待機中，請選擇 SOP 後點擊啟動。",
+    }
+    description = descriptions.get(status, "等待連線...")
 
     return {
         "status": status,
@@ -102,11 +98,24 @@ async def get_latest():
     }
 
 
-# --- 物理模擬引擎 ---
+# ============================================================
+# 物理模擬引擎
+# ============================================================
+
+
+def _cleanup_old_data(db):
+    """刪除 7 天前的舊數據，避免資料庫無限膨脹"""
+    cutoff = datetime.datetime.now() - datetime.timedelta(days=7)
+    deleted = db.query(DeviceData).filter(DeviceData.timestamp < cutoff).delete()
+    if deleted > 0:
+        print(f"🧹 [DB] 清理了 {deleted} 筆 7 天前的舊數據")
+    db.commit()
 
 
 async def data_simulator():
-    """物理模擬器 - 遵守標準的升降溫速率"""
+    """物理模擬器 — 遵守標準升降溫速率，每 10 秒寫一次資料庫"""
+    write_counter = 0  # 計數器，每 10 次迴圈才寫一次資料庫
+
     while True:
         cache = app.state.AICM_CACHE
         db = SessionLocal()
@@ -115,22 +124,22 @@ async def data_simulator():
                 status = item.get("status", "OFFLINE")
                 current_temp = item.get("temperature", 25.0)
 
+                # --- 溫度模擬 ---
                 if status == "RUNNING":
                     standard_id = item.get("standard_id", "IEC60068_CYCLE")
                     max_ramp_rate = get_ramp_rate(standard_id)
                     standard = get_standard(standard_id)
 
+                    target_temp = 25.0
                     if standard:
                         target_temp = standard.get("high_temperature") or standard.get(
                             "target_temperature", 25.0
                         )
-                    else:
-                        target_temp = 25.0
 
                     temp_diff = target_temp - current_temp
                     if abs(temp_diff) > 0.1:
-                        max_change_per_sec = max_ramp_rate / 60.0
-                        actual_change = min(abs(temp_diff), max_change_per_sec)
+                        max_change = max_ramp_rate / 60.0
+                        actual_change = min(abs(temp_diff), max_change)
                         new_temp = current_temp + (
                             actual_change if temp_diff > 0 else -actual_change
                         )
@@ -143,20 +152,29 @@ async def data_simulator():
                 elif status == "FINISHING":
                     diff = 25.0 - current_temp
                     if abs(diff) > 0.5:
-                        item["temperature"] += 0.4 if diff > 0 else -0.4
+                        item["temperature"] = round(
+                            current_temp + (0.4 if diff > 0 else -0.4), 2
+                        )
                     else:
-                        # ✅ 降溫完成，自動回到 IDLE
+                        # ✅ 降溫完成，自動回 IDLE
                         item["temperature"] = 25.0
                         item["status"] = "IDLE"
                         item["running_sop_name"] = "STANDBY"
                         print("✅ [SYSTEM] 降溫完成，系統回到待機狀態。")
 
                 elif status == "EMERGENCY":
-                    # 緊急停止時溫度微幅抖動（不主動降溫）
-                    item["temperature"] += random.uniform(-0.05, 0.05)
+                    item["temperature"] = round(
+                        current_temp + random.uniform(-0.05, 0.05), 2
+                    )
 
-                # 保存到資料庫
-                if status in ["RUNNING", "FINISHING", "PAUSED", "EMERGENCY"]:
+                # --- 每 10 秒寫一次資料庫（減少 90% 寫入量）---
+                write_counter += 1
+                if write_counter >= 10 and status in [
+                    "RUNNING",
+                    "FINISHING",
+                    "PAUSED",
+                    "EMERGENCY",
+                ]:
                     new_record = DeviceData(
                         device_id=device_id,
                         temperature=item["temperature"],
@@ -164,9 +182,17 @@ async def data_simulator():
                         timestamp=datetime.datetime.now(),
                     )
                     db.add(new_record)
-                    db.commit()
+
+            # 寫入資料庫
+            if write_counter >= 10:
+                db.commit()
+                write_counter = 0
+
+                # 每次寫入後順便清理舊資料
+                _cleanup_old_data(db)
 
             await asyncio.sleep(1)
+
         except Exception as e:
             print(f"Simulator Error: {e}")
             db.rollback()
@@ -174,9 +200,14 @@ async def data_simulator():
             db.close()
 
 
+# ============================================================
+# 啟動事件
+# ============================================================
+
+
 @app.on_event("startup")
 async def startup_event():
-    from .database import init_db
+    from .models import init_db
 
     init_db()
 
