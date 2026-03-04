@@ -1,6 +1,16 @@
 # DQA Lab Digital Twin
 
+![Python](https://img.shields.io/badge/Python-3.9+-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green)
+
 基於 FastAPI + React 的實驗室數位孿生平台，整合物理模擬引擎與國際環境測試標準，實現溫箱設備的遠端自動化控制。
+
+## 專案背景
+
+工業環境測試需要人工對照多份國際標準、手動紀錄溫濕度數據，過程繁瑣且容易出錯。本專案將測試流程數位化，整合 6 大國際標準的 62 個測試條件，並透過物理模擬引擎提供硬體不在場時的開發與測試環境。
 
 ## 核心功能
 
@@ -58,14 +68,6 @@ make dev
 後端：FastAPI、Pydantic、SQLAlchemy、asyncio、SQLite
 前端：React 18、Vite、Recharts、Axios
 環境：Python 3.9+、Node.js 16+、macOS/Linux（需要 socat）
-
-## 報告流程說明
-
-本系統採用兩層報告架構：
-
-**內部測試紀錄**（系統自動產生）— ISO 17025 CSV，含即時溫濕度數據、步驟完成狀態、PASS/FAIL 自動判定，供工程師自存追蹤。
-
-**對外 QA Test Report**（工程師人工整理）— 填入正式客戶/認證機構用的 Word 模板，需主管簽名後發出。模板位於 `docs/templates/QA_Test_Report_Template.docx`。
 
 ## 延伸文件
 
