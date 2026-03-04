@@ -32,7 +32,7 @@ const SOPPage = () => {
 
   const [activeSop, setActiveSop] = useState(null);
   const [completedSteps, setCompletedSteps] = useState({});
-  const [saved, setSaved] = useState(false);
+  const [savedExecutionId, setSavedExecutionId] = useState(null); // 儲存後記錄 execution_id
 
   const isActive = ACTIVE_STATUSES.includes(data.status);
   const completedCount = Object.values(completedSteps).filter(Boolean).length;
@@ -68,7 +68,7 @@ const SOPPage = () => {
     if (type === "normal" || type === "emergency") {
       setActiveSop(null);
       setCompletedSteps({});
-      setSaved(false);
+      setSavedExecutionId(null);
     }
   };
 
@@ -80,8 +80,8 @@ const SOPPage = () => {
         standard_id: sop.standard_id,
       });
       setActiveSop(sop);
-      setCompletedSteps({ 1: true, 2: true }); // Step 1、2 啟動時自動勾選
-      setSaved(false);
+      setCompletedSteps({ 1: true, 2: true });
+      setSavedExecutionId(null);
     } catch (err) {
       alert("啟動程序失敗");
     }
@@ -96,16 +96,27 @@ const SOPPage = () => {
         photos: null,
       }));
 
-      await axios.post("http://localhost:8000/api/sop-executions/", {
-        sop_id: activeSop.sop_id,
-        steps: steps,
-      });
+      const res = await axios.post(
+        "http://localhost:8000/api/sop-executions/",
+        {
+          sop_id: activeSop.sop_id,
+          steps: steps,
+        },
+      );
 
-      setSaved(true);
+      // 儲存 execution_id 用於下載報告
+      setSavedExecutionId(res.data.id);
     } catch (err) {
       alert("❌ 儲存失敗，請確認後端是否正常運作。");
       console.error(err);
     }
+  };
+
+  const downloadReport = () => {
+    window.open(
+      `http://localhost:8000/api/reports/csv/${savedExecutionId}`,
+      "_blank",
+    );
   };
 
   return (
@@ -248,27 +259,66 @@ const SOPPage = () => {
                 {allStepsDone && " ✅ 所有步驟已完成！"}
               </p>
 
-              {/* 全部完成才顯示儲存按鈕 */}
-              {allStepsDone && (
+              {/* 儲存按鈕 */}
+              {allStepsDone && !savedExecutionId && (
                 <button
                   onClick={saveExecution}
-                  disabled={saved}
                   style={{
                     marginTop: "12px",
                     padding: "10px 24px",
-                    backgroundColor: saved ? "#2d4a2d" : "#238636",
-                    color: saved ? "#57ab5a" : "#fff",
+                    backgroundColor: "#238636",
+                    color: "#fff",
                     border: "none",
                     borderRadius: "6px",
-                    cursor: saved ? "default" : "pointer",
+                    cursor: "pointer",
                     fontSize: "14px",
                     fontWeight: "bold",
                     width: "100%",
-                    transition: "background-color 0.2s",
                   }}
                 >
-                  {saved ? "✅ 紀錄已儲存" : "💾 儲存執行紀錄"}
+                  💾 儲存執行紀錄
                 </button>
+              )}
+
+              {/* 儲存成功後顯示下載按鈕 */}
+              {savedExecutionId && (
+                <div
+                  style={{
+                    marginTop: "12px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "8px",
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: "10px",
+                      backgroundColor: "#2d4a2d",
+                      color: "#57ab5a",
+                      borderRadius: "6px",
+                      fontSize: "13px",
+                      textAlign: "center",
+                    }}
+                  >
+                    ✅ 紀錄已儲存（ID: {savedExecutionId}）
+                  </div>
+                  <button
+                    onClick={downloadReport}
+                    style={{
+                      padding: "10px 24px",
+                      backgroundColor: "#1f6feb",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                      fontWeight: "bold",
+                      width: "100%",
+                    }}
+                  >
+                    📥 下載 CSV 測試報告
+                  </button>
+                </div>
               )}
             </section>
           )}

@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .sop import router as sop_router
 from .sop_execution import router as execution_router
+from .reports import router as reports_router
 from .models import SessionLocal, DeviceData
 from .standards import get_ramp_rate, get_standard
 
@@ -13,6 +14,7 @@ app.state.AICM_CACHE = {}
 background_tasks = set()
 app.include_router(sop_router, prefix="/api/sop", tags=["sop"])
 app.include_router(execution_router)
+app.include_router(reports_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -104,7 +106,7 @@ async def get_latest():
 
 
 def _cleanup_old_data(db):
-    """刪除 7 天前的舊數據，避免資料庫無限膨脹"""
+    """刪除 7 天前的舊數據"""
     cutoff = datetime.datetime.now() - datetime.timedelta(days=7)
     deleted = db.query(DeviceData).filter(DeviceData.timestamp < cutoff).delete()
     if deleted > 0:
@@ -113,8 +115,8 @@ def _cleanup_old_data(db):
 
 
 async def data_simulator():
-    """物理模擬器 — 遵守標準升降溫速率，每 10 秒寫一次資料庫"""
-    write_counter = 0  # 計數器，每 10 次迴圈才寫一次資料庫
+    """物理模擬器 — 每 10 秒寫一次資料庫"""
+    write_counter = 0
 
     while True:
         cache = app.state.AICM_CACHE
@@ -124,7 +126,6 @@ async def data_simulator():
                 status = item.get("status", "OFFLINE")
                 current_temp = item.get("temperature", 25.0)
 
-                # --- 溫度模擬 ---
                 if status == "RUNNING":
                     standard_id = item.get("standard_id", "IEC60068_CYCLE")
                     max_ramp_rate = get_ramp_rate(standard_id)
@@ -156,7 +157,6 @@ async def data_simulator():
                             current_temp + (0.4 if diff > 0 else -0.4), 2
                         )
                     else:
-                        # ✅ 降溫完成，自動回 IDLE
                         item["temperature"] = 25.0
                         item["status"] = "IDLE"
                         item["running_sop_name"] = "STANDBY"
@@ -167,7 +167,7 @@ async def data_simulator():
                         current_temp + random.uniform(-0.05, 0.05), 2
                     )
 
-                # --- 每 10 秒寫一次資料庫（減少 90% 寫入量）---
+                # 每 10 秒寫一次
                 write_counter += 1
                 if write_counter >= 10 and status in [
                     "RUNNING",
@@ -175,20 +175,18 @@ async def data_simulator():
                     "PAUSED",
                     "EMERGENCY",
                 ]:
-                    new_record = DeviceData(
-                        device_id=device_id,
-                        temperature=item["temperature"],
-                        humidity=item.get("humidity", 55.0),
-                        timestamp=datetime.datetime.now(),
+                    db.add(
+                        DeviceData(
+                            device_id=device_id,
+                            temperature=item["temperature"],
+                            humidity=item.get("humidity", 55.0),
+                            timestamp=datetime.datetime.now(),
+                        )
                     )
-                    db.add(new_record)
 
-            # 寫入資料庫
             if write_counter >= 10:
                 db.commit()
                 write_counter = 0
-
-                # 每次寫入後順便清理舊資料
                 _cleanup_old_data(db)
 
             await asyncio.sleep(1)
