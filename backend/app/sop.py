@@ -3,9 +3,11 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import json
 from .models import SessionLocal, SopTemplate
-from .standards import STANDARDS_AND_SOPS, get_sop_by_standard, get_standard_tree
+from .standards import STANDARDS_AND_SOPS, get_standard_tree
 
 router = APIRouter()
+
+DEVICE_IDS = ["KSON_CH01", "KSON_CH02", "KSON_CH03", "KSON_CH04", "KSON_CH05"]
 
 
 class SopResponse(BaseModel):
@@ -19,10 +21,7 @@ class SopResponse(BaseModel):
 
 @router.get("/standards/tree")
 def get_standards_tree():
-    """
-    取得完整三層標準樹：法規 → 版本 → 測試條件
-    供前端 UI 三步驟選擇使用
-    """
+    """完整三層標準樹：法規 → 版本 → 測試條件"""
     tree = get_standard_tree()
     result = {}
     for std_key, std_data in tree.items():
@@ -61,30 +60,24 @@ def get_standards_tree():
 
 @router.get("/", response_model=List[SopResponse])
 def list_sops():
-    """
-    取得所有 SOP 列表（向後相容）
-    從 STANDARDS_AND_SOPS（由 STANDARD_TREE 自動展開）讀取
-    """
-    sops: List[SopResponse] = []
-
-    for sop_id, std_data in STANDARDS_AND_SOPS.items():
-        steps = std_data.get("steps", [])
-        sop = SopResponse(
+    """SOP 列表（從 STANDARD_TREE 自動展開 + 資料庫客製 SOP）"""
+    sops: List[SopResponse] = [
+        SopResponse(
             sop_id=std_data.get("sop_id", sop_id),
             name=std_data.get("name", ""),
             test_type=std_data.get("test_type", "chamber"),
             version=std_data.get("version", ""),
             description=std_data.get("description", ""),
-            steps=steps if isinstance(steps, list) else [],
+            steps=std_data.get("steps", [])
+            if isinstance(std_data.get("steps"), list)
+            else [],
         )
-        sops.append(sop)
+        for sop_id, std_data in STANDARDS_AND_SOPS.items()
+    ]
 
-    # 再從資料庫取客製 SOP（避免重複）
-    db = SessionLocal()
-    try:
-        db_sops = db.query(SopTemplate).all()
+    with SessionLocal() as db:
         existing_ids = {s.sop_id for s in sops}
-        for s in db_sops:
+        for s in db.query(SopTemplate).all():
             if s.sop_id not in existing_ids:
                 sops.append(
                     SopResponse(
@@ -95,49 +88,48 @@ def list_sops():
                         steps=json.loads(s.steps_json) if s.steps_json else [],
                     )
                 )
-    finally:
-        db.close()
 
     return sops
 
 
 @router.post("/start")
 async def start_sop(request: Request, payload: Dict[str, Any] = Body(...)):
-    """啟動 SOP 測試"""
+    """啟動指定設備的 SOP 測試"""
     sop_id: str = payload.get("sop_id", "")
-    device_key: str = "KSON_CH01"
+    device_id: str = payload.get("device_id", "KSON_CH01")
 
     if not sop_id:
         raise HTTPException(status_code=400, detail="sop_id 不能為空")
+    if device_id not in DEVICE_IDS:
+        raise HTTPException(status_code=400, detail=f"無效的 device_id: {device_id}")
 
     cache = request.app.state.AICM_CACHE
+    device = cache.get(device_id)
 
-    if device_key in cache and cache[device_key].get("status") == "RUNNING":
+    if not device:
+        raise HTTPException(status_code=404, detail=f"設備 {device_id} 不存在")
+    if device.get("status") == "RUNNING":
         raise HTTPException(
-            status_code=400, detail="機台正在執行中，請先停止目前程序。"
+            status_code=400, detail=f"{device_id} 正在執行中，請先停止。"
         )
 
-    if device_key not in cache:
-        cache[device_key] = {"temperature": 25.0, "humidity": 55.0, "status": "IDLE"}
-
-    # 從 STANDARDS_AND_SOPS 取得名稱與標準參數
     std_data = STANDARDS_AND_SOPS.get(sop_id, {})
     sop_name = std_data.get("name", sop_id)
 
-    # 如果 standards 沒有，查資料庫
     if sop_name == sop_id:
-        db = SessionLocal()
-        try:
+        with SessionLocal() as db:
             sop = db.query(SopTemplate).filter(SopTemplate.sop_id == sop_id).first()
             if sop:
                 sop_name = sop.name
-        finally:
-            db.close()
 
-    cache[device_key]["status"] = "RUNNING"
-    cache[device_key]["running_sop_id"] = sop_id
-    cache[device_key]["running_sop_name"] = sop_name
-    cache[device_key]["standard_id"] = sop_id  # sop_id 即 standard_id
+    device.update(
+        {
+            "status": "RUNNING",
+            "running_sop_id": sop_id,
+            "running_sop_name": sop_name,
+            "standard_id": sop_id,
+        }
+    )
 
-    print(f"🔥 Started SOP: {sop_id} ({sop_name})")
-    return {"status": "success", "message": f"SOP {sop_name} 已啟動"}
+    print(f"🔥 [{device_id}] Started SOP: {sop_id} ({sop_name})")
+    return {"status": "success", "message": f"{device_id} 已啟動 {sop_name}"}

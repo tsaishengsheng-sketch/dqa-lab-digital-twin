@@ -12,6 +12,13 @@ import {
 import "./SOPPage.css";
 
 const API = "http://localhost:8000";
+const DEVICE_IDS = [
+  "KSON_CH01",
+  "KSON_CH02",
+  "KSON_CH03",
+  "KSON_CH04",
+  "KSON_CH05",
+];
 
 const SAFETY_CHECKS = [
   "測試孔是否用塑膠塞及抹布將兩邊塞緊，以免水氣跑出。",
@@ -28,10 +35,10 @@ const STATUS_CONFIG = {
   IDLE: { color: "#8b949e", bg: "#21262d" },
   RUNNING: { color: "#3fb950", bg: "#0f2318" },
   PAUSED: { color: "#f0a500", bg: "#2d1f00" },
+  FINISHING: { color: "#58a6ff", bg: "#0d1f33" },
   EMERGENCY: { color: "#f85149", bg: "#2d0f0f" },
 };
 
-// ─── 測試條件摘要卡 ───────────────────────────────────────────
 const ConditionCard = ({ test }) => {
   if (!test) return null;
   const rows = [
@@ -119,7 +126,6 @@ const ConditionCard = ({ test }) => {
   );
 };
 
-// ─── 選擇按鈕組 ───────────────────────────────────────────────
 const SelectGroup = ({ step, title, items, selected, onSelect, accent }) => {
   const isDone = !!selected;
   return (
@@ -191,7 +197,6 @@ const SelectGroup = ({ step, title, items, selected, onSelect, accent }) => {
   );
 };
 
-// ─── 折線圖 ───────────────────────────────────────────────────
 const TempChart = ({ data, targetTemp }) => {
   if (!data || data.length < 2)
     return (
@@ -249,17 +254,9 @@ const TempChart = ({ data, targetTemp }) => {
   );
 };
 
-// ─── 主元件 ───────────────────────────────────────────────────
 const SOPPage = () => {
-  const [data, setData] = useState({
-    status: "OFFLINE",
-    temperature: 0.0,
-    humidity: 0.0,
-    running_sop_name: "None",
-    description: "等待連線...",
-    timestamp: "--:--:--",
-  });
-
+  const [selectedDevice, setSelectedDevice] = useState("KSON_CH01");
+  const [allDevices, setAllDevices] = useState({});
   const [tempHistory, setTempHistory] = useState([]);
   const tickRef = useRef(0);
   const [emergencyFlash, setEmergencyFlash] = useState(false);
@@ -279,10 +276,20 @@ const SOPPage = () => {
     false,
   ]);
 
+  const data = allDevices[selectedDevice] || {
+    status: "OFFLINE",
+    temperature: 0.0,
+    humidity: 0.0,
+    running_sop_name: "未連線",
+    description: "等待連線...",
+    timestamp: "--:--:--",
+  };
+
   const isActive = ACTIVE_STATUSES.includes(data.status);
   const isOffline = data.status === "OFFLINE";
   const isEmergency = data.status === "EMERGENCY";
   const canStop = isActive || isEmergency;
+  const sc = STATUS_CONFIG[data.status] || STATUS_CONFIG.OFFLINE;
 
   const allChecked = safetyChecked.every(Boolean);
   const totalSteps = activeSop?.steps?.length ?? 0;
@@ -298,12 +305,19 @@ const SOPPage = () => {
   const testItems = verData
     ? Object.entries(verData.tests).map(([k, v]) => [k, v.name])
     : [];
-
   const targetTemp =
     activeSop?.low_temperature ?? activeSop?.high_temperature ?? null;
-  const sc = STATUS_CONFIG[data.status] || STATUS_CONFIG.OFFLINE;
 
-  // EMERGENCY 閃爍
+  const handleSelectDevice = (deviceId) => {
+    setSelectedDevice(deviceId);
+    setActiveSop(null);
+    setCompletedSteps({});
+    setSavedExecutionId(null);
+    setSafetyChecked([false, false, false, false]);
+    setTempHistory([]);
+    tickRef.current = 0;
+  };
+
   useEffect(() => {
     if (!isEmergency) {
       setEmergencyFlash(false);
@@ -317,30 +331,37 @@ const SOPPage = () => {
     axios
       .get(`${API}/api/sop/standards/tree`)
       .then((r) => setStandardTree(r.data))
-      .catch((e) => console.error("Failed to load standards tree", e));
+      .catch((e) => console.error(e));
   }, []);
 
   useEffect(() => {
     const t = setInterval(() => {
       axios
-        .get(`${API}/api/latest`)
+        .get(`${API}/api/devices`)
         .then((r) => {
-          setData(r.data);
-          tickRef.current += 1;
-          setTempHistory((prev) => {
-            const next = [
-              ...prev,
-              { t: tickRef.current, temp: r.data.temperature },
-            ];
-            return next.length > MAX_CHART_POINTS
-              ? next.slice(-MAX_CHART_POINTS)
-              : next;
+          const map = {};
+          r.data.forEach((d) => {
+            map[d.device_id] = d;
           });
+          setAllDevices(map);
+          const current = map[selectedDevice];
+          if (current) {
+            tickRef.current += 1;
+            setTempHistory((prev) => {
+              const next = [
+                ...prev,
+                { t: tickRef.current, temp: current.temperature },
+              ];
+              return next.length > MAX_CHART_POINTS
+                ? next.slice(-MAX_CHART_POINTS)
+                : next;
+            });
+          }
         })
         .catch(() => {});
     }, 1000);
     return () => clearInterval(t);
-  }, []);
+  }, [selectedDevice]);
 
   const handleSelectStd = (key) => {
     setSelectedStd(key);
@@ -357,7 +378,7 @@ const SOPPage = () => {
     try {
       await axios.post(`${API}/api/sop/start`, {
         sop_id: testData.sop_id,
-        device_id: "KSON_CH01",
+        device_id: selectedDevice,
       });
       let steps = [];
       try {
@@ -411,7 +432,7 @@ const SOPPage = () => {
   };
 
   const handleAction = async (type) => {
-    await axios.post(`${API}/api/stop/${type}`);
+    await axios.post(`${API}/api/stop/${selectedDevice}/${type}`);
     if (type === "normal" || type === "emergency") {
       setActiveSop(null);
       setCompletedSteps({});
@@ -442,7 +463,6 @@ const SOPPage = () => {
 
   return (
     <div className="sop-page-layout">
-      {/* ══ 左側 ══ */}
       <aside className="monitor-side">
         <div className="brand-box">
           <h1 className="main-title">KSON AICM | Digital Twin</h1>
@@ -463,6 +483,56 @@ const SOPPage = () => {
               {data.status}
             </span>
             <span className="update-time">{data.timestamp}</span>
+          </div>
+        </div>
+
+        {/* 設備選擇器 */}
+        <div
+          style={{
+            background: "#161b22",
+            border: "1px solid #30363d",
+            borderRadius: 8,
+            padding: "12px 16px",
+            marginBottom: 12,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              color: "#484f58",
+              letterSpacing: 1,
+              marginBottom: 8,
+              fontWeight: 600,
+            }}
+          >
+            SELECT DEVICE
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {DEVICE_IDS.map((id) => {
+              const d = allDevices[id];
+              const s = STATUS_CONFIG[d?.status] || STATUS_CONFIG.OFFLINE;
+              const active = id === selectedDevice;
+              return (
+                <button
+                  key={id}
+                  onClick={() => handleSelectDevice(id)}
+                  style={{
+                    padding: "5px 10px",
+                    borderRadius: 6,
+                    fontSize: 11,
+                    cursor: "pointer",
+                    fontFamily: "monospace",
+                    fontWeight: active ? 700 : 400,
+                    border: `1px solid ${active ? s.color : "#30363d"}`,
+                    background: active ? s.bg : "#0d1117",
+                    color: active ? s.color : "#8b949e",
+                    transition: "all .15s",
+                  }}
+                >
+                  {id.replace("KSON_", "")}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -509,10 +579,8 @@ const SOPPage = () => {
         </div>
       </aside>
 
-      {/* ══ 右側 ══ */}
       <main className="control-side">
         <div className="scroll-wrapper">
-          {/* 系統控制面板 */}
           <section
             className="operation-box"
             style={
@@ -540,7 +608,7 @@ const SOPPage = () => {
                   border: `1px solid ${sc.color}44`,
                 }}
               >
-                {data.status}
+                {selectedDevice} — {data.status}
               </span>
             </div>
             <p className="task-desc">
@@ -587,7 +655,6 @@ const SOPPage = () => {
             </div>
           </section>
 
-          {/* 執行中步驟清單 */}
           {isActive && activeSop && (
             <section
               className="operation-box"
@@ -600,7 +667,6 @@ const SOPPage = () => {
               <p style={{ color: "#8b949e", fontSize: 12, marginBottom: 14 }}>
                 請依序確認每個步驟已完成：
               </p>
-
               {(activeSop.steps || []).map((step) => (
                 <label
                   key={step.step_id}
@@ -654,8 +720,6 @@ const SOPPage = () => {
                   </div>
                 </label>
               ))}
-
-              {/* 進度條 */}
               <div style={{ marginTop: 8, marginBottom: 4 }}>
                 <div
                   style={{
@@ -685,7 +749,6 @@ const SOPPage = () => {
                   {doneCnt} / {totalSteps} 步驟完成{allStepsDone && " ✅"}
                 </div>
               </div>
-
               {allStepsDone && !savedExecutionId && (
                 <button
                   onClick={saveExecution}
@@ -705,7 +768,6 @@ const SOPPage = () => {
                   💾 儲存執行紀錄
                 </button>
               )}
-
               {savedExecutionId && (
                 <div
                   style={{
@@ -748,7 +810,6 @@ const SOPPage = () => {
             </section>
           )}
 
-          {/* 待機：三步驟選擇器 */}
           {!isActive && (
             <>
               <section
@@ -901,7 +962,7 @@ const SOPPage = () => {
                     }}
                   >
                     {allChecked
-                      ? `🚀 啟動測試：${testData.name}`
+                      ? `🚀 啟動 ${selectedDevice}：${testData.name}`
                       : "請先確認所有注意事項"}
                   </button>
                 </section>

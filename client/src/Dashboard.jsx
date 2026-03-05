@@ -13,41 +13,175 @@ import {
 const API = "http://localhost:8000";
 
 const STATUS_CONFIG = {
-  OFFLINE: { color: "#484f58", bg: "#21262d" },
-  IDLE: { color: "#8b949e", bg: "#21262d" },
-  RUNNING: { color: "#3fb950", bg: "#0f2318" },
-  PAUSED: { color: "#f0a500", bg: "#2d1f00" },
-  FINISHING: { color: "#58a6ff", bg: "#0d1f33" },
-  EMERGENCY: { color: "#f85149", bg: "#2d0f0f" },
+  OFFLINE: { color: "#484f58", bg: "#21262d", label: "OFFLINE" },
+  IDLE: { color: "#8b949e", bg: "#21262d", label: "IDLE" },
+  RUNNING: { color: "#3fb950", bg: "#0f2318", label: "RUNNING" },
+  PAUSED: { color: "#f0a500", bg: "#2d1f00", label: "PAUSED" },
+  FINISHING: { color: "#58a6ff", bg: "#0d1f33", label: "FINISHING" },
+  EMERGENCY: { color: "#f85149", bg: "#2d0f0f", label: "EMERGENCY" },
 };
 
+const card = {
+  background: "#161b22",
+  border: "1px solid #30363d",
+  borderRadius: 12,
+  padding: "20px 24px",
+};
+
+// ── 單台設備卡片 ──────────────────────────────────────────
+const DeviceCard = ({ device }) => {
+  const sc = STATUS_CONFIG[device.status] || STATUS_CONFIG.OFFLINE;
+  const isActive = ["RUNNING", "PAUSED", "FINISHING", "EMERGENCY"].includes(
+    device.status,
+  );
+
+  return (
+    <div
+      style={{
+        ...card,
+        borderLeft: `3px solid ${sc.color}`,
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+      }}
+    >
+      {/* 標題列 */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <span
+          style={{
+            color: "#cdd9e5",
+            fontWeight: 700,
+            fontSize: 14,
+            fontFamily: "monospace",
+          }}
+        >
+          {device.device_id}
+        </span>
+        <span
+          style={{
+            padding: "2px 8px",
+            borderRadius: 4,
+            fontSize: 11,
+            fontWeight: 700,
+            color: sc.color,
+            background: sc.bg,
+            border: `1px solid ${sc.color}44`,
+          }}
+        >
+          {sc.label}
+        </span>
+      </div>
+
+      {/* 溫濕度 */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-end",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              color: "#484f58",
+              fontSize: 10,
+              letterSpacing: 1,
+              marginBottom: 2,
+            }}
+          >
+            TEMP
+          </div>
+          <div
+            style={{
+              color: "#ff7b72",
+              fontSize: 36,
+              fontWeight: 800,
+              lineHeight: 1,
+            }}
+          >
+            {device.temperature.toFixed(1)}
+            <span style={{ fontSize: 14, color: "#484f58", marginLeft: 3 }}>
+              °C
+            </span>
+          </div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div
+            style={{
+              color: "#484f58",
+              fontSize: 10,
+              letterSpacing: 1,
+              marginBottom: 2,
+            }}
+          >
+            HUMI
+          </div>
+          <div
+            style={{
+              color: "#a5d6ff",
+              fontSize: 36,
+              fontWeight: 800,
+              lineHeight: 1,
+            }}
+          >
+            {device.humidity.toFixed(1)}
+            <span style={{ fontSize: 14, color: "#484f58", marginLeft: 3 }}>
+              %
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* 執行中任務 */}
+      <div
+        style={{
+          padding: "8px 12px",
+          background: "#0d1117",
+          borderRadius: 6,
+          border: "1px solid #21262d",
+          fontSize: 12,
+          color: isActive ? "#cdd9e5" : "#484f58",
+        }}
+      >
+        {isActive ? device.running_sop_name : "STANDBY (IDLE)"}
+      </div>
+    </div>
+  );
+};
+
+// ── 主元件 ────────────────────────────────────────────────
 const Dashboard = () => {
-  const [data, setData] = useState({
-    temperature: 0,
-    humidity: 0,
-    status: "OFFLINE",
-    timestamp: "--:--:--",
-    running_sop_name: "None",
-    description: "等待連線...",
-  });
+  const [devices, setDevices] = useState([]);
   const [history, setHistory] = useState([]);
   const [executions, setExecutions] = useState([]);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchDevices = async () => {
       try {
-        const res = await axios.get(`${API}/api/latest`);
-        const json = res.data;
-        if (json.temperature !== undefined) {
-          setData(json);
+        const res = await axios.get(`${API}/api/devices`);
+        setDevices(res.data);
+        // 用 CH01 的溫度代表趨勢圖
+        const ch01 = res.data.find((d) => d.device_id === "KSON_CH01");
+        if (ch01) {
           setHistory((prev) => [
             ...prev.slice(-59),
-            { ...json, time: json.timestamp },
+            {
+              time: ch01.timestamp,
+              temperature: ch01.temperature,
+              humidity: ch01.humidity,
+            },
           ]);
         }
       } catch (err) {}
     };
-    const interval = setInterval(fetchData, 1000);
+    const interval = setInterval(fetchDevices, 1000);
+    fetchDevices();
     return () => clearInterval(interval);
   }, []);
 
@@ -58,17 +192,11 @@ const Dashboard = () => {
       .catch(() => {});
   }, []);
 
-  const sc = STATUS_CONFIG[data.status] || STATUS_CONFIG.OFFLINE;
-  const isActive = ["RUNNING", "FINISHING", "PAUSED", "EMERGENCY"].includes(
-    data.status,
-  );
-
-  const card = {
-    background: "#161b22",
-    border: "1px solid #30363d",
-    borderRadius: 12,
-    padding: "20px 24px",
-  };
+  const runningCount = devices.filter((d) => d.status === "RUNNING").length;
+  const emergencyCount = devices.filter((d) => d.status === "EMERGENCY").length;
+  const idleCount = devices.filter((d) =>
+    ["IDLE", "OFFLINE"].includes(d.status),
+  ).length;
 
   return (
     <div
@@ -82,7 +210,7 @@ const Dashboard = () => {
         width: "100%",
       }}
     >
-      {/* ── 標題列 ── */}
+      {/* 標題列 */}
       <div
         style={{
           display: "flex",
@@ -98,128 +226,28 @@ const Dashboard = () => {
         >
           KSON AICM | Digital Twin
         </h1>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span
-            style={{
-              padding: "2px 10px",
-              borderRadius: 4,
-              fontSize: 12,
-              fontWeight: 700,
-              color: sc.color,
-              background: sc.bg,
-              border: `1px solid ${sc.color}44`,
-            }}
-          >
-            {data.status}
-          </span>
-          <span style={{ fontSize: 11, color: "#484f58" }}>
-            {data.timestamp}
-          </span>
+        <div style={{ display: "flex", gap: 10, fontSize: 12 }}>
+          <span style={{ color: "#3fb950" }}>● 執行中 {runningCount}</span>
+          <span style={{ color: "#f85149" }}>● 緊急 {emergencyCount}</span>
+          <span style={{ color: "#484f58" }}>● 待機 {idleCount}</span>
         </div>
       </div>
 
-      {/* ── 當前任務 ── */}
-      <div
-        style={{
-          ...card,
-          borderLeft: `3px solid ${sc.color}`,
-          marginBottom: 24,
-        }}
-      >
-        <div
-          style={{
-            color: "#8b949e",
-            fontSize: 11,
-            letterSpacing: 1,
-            fontWeight: 600,
-          }}
-        >
-          CURRENT MISSION
-        </div>
-        <div
-          style={{
-            color: "#cdd9e5",
-            fontSize: 15,
-            fontWeight: 700,
-            marginTop: 6,
-          }}
-        >
-          {isActive
-            ? data.running_sop_name
-            : data.status === "OFFLINE"
-              ? "等待後端連線"
-              : "STANDBY (IDLE)"}
-        </div>
-        <div style={{ color: "#8b949e", fontSize: 12, marginTop: 4 }}>
-          {data.description}
-        </div>
-      </div>
-
-      {/* ── 溫濕度卡片 ── */}
+      {/* 5 台設備卡片 */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-          gap: 20,
+          gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+          gap: 16,
           marginBottom: 24,
         }}
       >
-        <div style={{ ...card, borderLeft: "3px solid #ff7b72" }}>
-          <div
-            style={{
-              color: "#8b949e",
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: 1,
-            }}
-          >
-            TEMP PV
-          </div>
-          <div
-            style={{
-              fontSize: 64,
-              fontWeight: 800,
-              color: "#ff7b72",
-              lineHeight: 1.1,
-              textAlign: "right",
-            }}
-          >
-            {data.temperature.toFixed(2)}
-            <span style={{ fontSize: 20, color: "#484f58", marginLeft: 5 }}>
-              °C
-            </span>
-          </div>
-        </div>
-
-        <div style={{ ...card, borderLeft: "3px solid #a5d6ff" }}>
-          <div
-            style={{
-              color: "#8b949e",
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: 1,
-            }}
-          >
-            HUMI PV
-          </div>
-          <div
-            style={{
-              fontSize: 64,
-              fontWeight: 800,
-              color: "#a5d6ff",
-              lineHeight: 1.1,
-              textAlign: "right",
-            }}
-          >
-            {data.humidity.toFixed(1)}
-            <span style={{ fontSize: 20, color: "#484f58", marginLeft: 5 }}>
-              %
-            </span>
-          </div>
-        </div>
+        {devices.map((device) => (
+          <DeviceCard key={device.device_id} device={device} />
+        ))}
       </div>
 
-      {/* ── 趨勢圖 ── */}
+      {/* 趨勢圖 (CH01) */}
       <div style={{ ...card, marginBottom: 24 }}>
         <div
           style={{
@@ -230,9 +258,9 @@ const Dashboard = () => {
             marginBottom: 16,
           }}
         >
-          TEMP / HUMI TREND（最近 60 秒）
+          KSON_CH01 — TEMP / HUMI TREND（最近 60 秒）
         </div>
-        <ResponsiveContainer width="100%" height={260}>
+        <ResponsiveContainer width="100%" height={220}>
           <LineChart
             data={history}
             margin={{ top: 5, right: 16, left: -10, bottom: 5 }}
@@ -283,7 +311,7 @@ const Dashboard = () => {
         </ResponsiveContainer>
       </div>
 
-      {/* ── 執行紀錄列表 ── */}
+      {/* 執行紀錄 */}
       <div style={card}>
         <div
           style={{
