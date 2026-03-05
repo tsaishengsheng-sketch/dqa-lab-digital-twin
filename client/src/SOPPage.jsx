@@ -39,6 +39,16 @@ const STATUS_CONFIG = {
   EMERGENCY: { color: "#f85149", bg: "#2d0f0f" },
 };
 
+// ── 各設備獨立 state 初始值 ──────────────────────────────
+const initDeviceState = () => ({
+  activeSop: null,
+  completedSteps: {},
+  savedExecutionId: null,
+  safetyChecked: [false, false, false, false],
+  tempHistory: [],
+  tick: 0,
+});
+
 const ConditionCard = ({ test }) => {
   if (!test) return null;
   const rows = [
@@ -254,28 +264,23 @@ const TempChart = ({ data, targetTemp }) => {
   );
 };
 
+// ── 主元件 ────────────────────────────────────────────────
 const SOPPage = () => {
   const [selectedDevice, setSelectedDevice] = useState("KSON_CH01");
   const [allDevices, setAllDevices] = useState({});
-  const [tempHistory, setTempHistory] = useState([]);
-  const tickRef = useRef(0);
-  const [emergencyFlash, setEmergencyFlash] = useState(false);
 
+  // 每台設備各自獨立的 state，用 deviceId 為 key
+  const [deviceStates, setDeviceStates] = useState(() =>
+    Object.fromEntries(DEVICE_IDS.map((id) => [id, initDeviceState()])),
+  );
+
+  const [emergencyFlash, setEmergencyFlash] = useState(false);
   const [standardTree, setStandardTree] = useState({});
   const [selectedStd, setSelectedStd] = useState(null);
   const [selectedVer, setSelectedVer] = useState(null);
   const [selectedTest, setSelectedTest] = useState(null);
 
-  const [activeSop, setActiveSop] = useState(null);
-  const [completedSteps, setCompletedSteps] = useState({});
-  const [savedExecutionId, setSavedExecutionId] = useState(null);
-  const [safetyChecked, setSafetyChecked] = useState([
-    false,
-    false,
-    false,
-    false,
-  ]);
-
+  // 當前設備的資料與 state
   const data = allDevices[selectedDevice] || {
     status: "OFFLINE",
     temperature: 0.0,
@@ -284,6 +289,7 @@ const SOPPage = () => {
     description: "等待連線...",
     timestamp: "--:--:--",
   };
+  const ds = deviceStates[selectedDevice];
 
   const isActive = ACTIVE_STATUSES.includes(data.status);
   const isOffline = data.status === "OFFLINE";
@@ -291,10 +297,10 @@ const SOPPage = () => {
   const canStop = isActive || isEmergency;
   const sc = STATUS_CONFIG[data.status] || STATUS_CONFIG.OFFLINE;
 
-  const allChecked = safetyChecked.every(Boolean);
-  const totalSteps = activeSop?.steps?.length ?? 0;
-  const doneCnt = Object.values(completedSteps).filter(Boolean).length;
-  const allStepsDone = activeSop && doneCnt === totalSteps;
+  const allChecked = ds.safetyChecked.every(Boolean);
+  const totalSteps = ds.activeSop?.steps?.length ?? 0;
+  const doneCnt = Object.values(ds.completedSteps).filter(Boolean).length;
+  const allStepsDone = ds.activeSop && doneCnt === totalSteps;
 
   const stdData = selectedStd ? standardTree[selectedStd] : null;
   const verData = selectedVer ? stdData?.versions?.[selectedVer] : null;
@@ -306,18 +312,17 @@ const SOPPage = () => {
     ? Object.entries(verData.tests).map(([k, v]) => [k, v.name])
     : [];
   const targetTemp =
-    activeSop?.low_temperature ?? activeSop?.high_temperature ?? null;
+    ds.activeSop?.low_temperature ?? ds.activeSop?.high_temperature ?? null;
 
-  const handleSelectDevice = (deviceId) => {
-    setSelectedDevice(deviceId);
-    setActiveSop(null);
-    setCompletedSteps({});
-    setSavedExecutionId(null);
-    setSafetyChecked([false, false, false, false]);
-    setTempHistory([]);
-    tickRef.current = 0;
+  // 更新指定設備的部分 state
+  const updateDS = (deviceId, patch) => {
+    setDeviceStates((prev) => ({
+      ...prev,
+      [deviceId]: { ...prev[deviceId], ...patch },
+    }));
   };
 
+  // EMERGENCY 閃爍
   useEffect(() => {
     if (!isEmergency) {
       setEmergencyFlash(false);
@@ -327,6 +332,7 @@ const SOPPage = () => {
     return () => clearInterval(t);
   }, [isEmergency]);
 
+  // 載入標準樹
   useEffect(() => {
     axios
       .get(`${API}/api/sop/standards/tree`)
@@ -334,6 +340,7 @@ const SOPPage = () => {
       .catch((e) => console.error(e));
   }, []);
 
+  // 每秒輪詢所有設備狀態
   useEffect(() => {
     const t = setInterval(() => {
       axios
@@ -344,24 +351,35 @@ const SOPPage = () => {
             map[d.device_id] = d;
           });
           setAllDevices(map);
-          const current = map[selectedDevice];
-          if (current) {
-            tickRef.current += 1;
-            setTempHistory((prev) => {
-              const next = [
-                ...prev,
-                { t: tickRef.current, temp: current.temperature },
+
+          // 更新每台設備的 tempHistory
+          setDeviceStates((prev) => {
+            const next = { ...prev };
+            DEVICE_IDS.forEach((id) => {
+              const current = map[id];
+              if (!current) return;
+              const prevDS = prev[id];
+              const newTick = prevDS.tick + 1;
+              const newHistory = [
+                ...prevDS.tempHistory,
+                { t: newTick, temp: current.temperature },
               ];
-              return next.length > MAX_CHART_POINTS
-                ? next.slice(-MAX_CHART_POINTS)
-                : next;
+              next[id] = {
+                ...prevDS,
+                tick: newTick,
+                tempHistory:
+                  newHistory.length > MAX_CHART_POINTS
+                    ? newHistory.slice(-MAX_CHART_POINTS)
+                    : newHistory,
+              };
             });
-          }
+            return next;
+          });
         })
         .catch(() => {});
     }, 1000);
     return () => clearInterval(t);
-  }, [selectedDevice]);
+  }, []);
 
   const handleSelectStd = (key) => {
     setSelectedStd(key);
@@ -423,9 +441,11 @@ const SOPPage = () => {
           },
         ];
       }
-      setActiveSop({ ...testData, steps });
-      setCompletedSteps({ 1: true, 2: true });
-      setSavedExecutionId(null);
+      updateDS(selectedDevice, {
+        activeSop: { ...testData, steps },
+        completedSteps: {},
+        savedExecutionId: null,
+      });
     } catch {
       alert("啟動程序失敗，請確認後端是否正常運作。");
     }
@@ -434,32 +454,34 @@ const SOPPage = () => {
   const handleAction = async (type) => {
     await axios.post(`${API}/api/stop/${selectedDevice}/${type}`);
     if (type === "normal" || type === "emergency") {
-      setActiveSop(null);
-      setCompletedSteps({});
-      setSavedExecutionId(null);
-      setSafetyChecked([false, false, false, false]);
+      updateDS(selectedDevice, {
+        activeSop: null,
+        completedSteps: {},
+        savedExecutionId: null,
+        safetyChecked: [false, false, false, false],
+      });
     }
   };
 
   const saveExecution = async () => {
     try {
-      const steps = activeSop.steps.map((s) => ({
+      const steps = ds.activeSop.steps.map((s) => ({
         step_id: s.step_id,
-        completed: !!completedSteps[s.step_id],
+        completed: !!ds.completedSteps[s.step_id],
         parameters: null,
       }));
       const res = await axios.post(`${API}/api/sop-executions/`, {
-        sop_id: activeSop.sop_id,
+        sop_id: ds.activeSop.sop_id,
         steps,
       });
-      setSavedExecutionId(res.data.id);
+      updateDS(selectedDevice, { savedExecutionId: res.data.id });
     } catch {
       alert("❌ 儲存失敗，請確認後端連線。");
     }
   };
 
   const downloadReport = () =>
-    window.open(`${API}/api/reports/csv/${savedExecutionId}`, "_blank");
+    window.open(`${API}/api/reports/csv/${ds.savedExecutionId}`, "_blank");
 
   return (
     <div className="sop-page-layout">
@@ -515,7 +537,7 @@ const SOPPage = () => {
               return (
                 <button
                   key={id}
-                  onClick={() => handleSelectDevice(id)}
+                  onClick={() => setSelectedDevice(id)}
                   style={{
                     padding: "5px 10px",
                     borderRadius: 6,
@@ -564,7 +586,7 @@ const SOPPage = () => {
           <label style={{ fontSize: 11, color: "#484f58", letterSpacing: 1 }}>
             TEMP TREND
           </label>
-          <TempChart data={tempHistory} targetTemp={targetTemp} />
+          <TempChart data={ds.tempHistory} targetTemp={targetTemp} />
         </div>
 
         <div
@@ -655,19 +677,19 @@ const SOPPage = () => {
             </div>
           </section>
 
-          {isActive && activeSop && (
+          {isActive && ds.activeSop && (
             <section
               className="operation-box"
               style={{ borderLeft: "3px solid #58a6ff" }}
             >
               <div className="box-header">
                 <span>📋</span>
-                <h2 style={{ fontSize: 13 }}>{activeSop.name}</h2>
+                <h2 style={{ fontSize: 13 }}>{ds.activeSop.name}</h2>
               </div>
               <p style={{ color: "#8b949e", fontSize: 12, marginBottom: 14 }}>
                 請依序確認每個步驟已完成：
               </p>
-              {(activeSop.steps || []).map((step) => (
+              {(ds.activeSop.steps || []).map((step) => (
                 <label
                   key={step.step_id}
                   style={{
@@ -676,17 +698,21 @@ const SOPPage = () => {
                     gap: 10,
                     marginBottom: 12,
                     cursor: "pointer",
-                    color: completedSteps[step.step_id] ? "#57ab5a" : "#cdd9e5",
+                    color: ds.completedSteps[step.step_id]
+                      ? "#57ab5a"
+                      : "#cdd9e5",
                   }}
                 >
                   <input
                     type="checkbox"
-                    checked={!!completedSteps[step.step_id]}
+                    checked={!!ds.completedSteps[step.step_id]}
                     onChange={() =>
-                      setCompletedSteps((p) => ({
-                        ...p,
-                        [step.step_id]: !p[step.step_id],
-                      }))
+                      updateDS(selectedDevice, {
+                        completedSteps: {
+                          ...ds.completedSteps,
+                          [step.step_id]: !ds.completedSteps[step.step_id],
+                        },
+                      })
                     }
                     style={{
                       marginTop: 3,
@@ -749,7 +775,7 @@ const SOPPage = () => {
                   {doneCnt} / {totalSteps} 步驟完成{allStepsDone && " ✅"}
                 </div>
               </div>
-              {allStepsDone && !savedExecutionId && (
+              {allStepsDone && !ds.savedExecutionId && (
                 <button
                   onClick={saveExecution}
                   style={{
@@ -768,7 +794,7 @@ const SOPPage = () => {
                   💾 儲存執行紀錄
                 </button>
               )}
-              {savedExecutionId && (
+              {ds.savedExecutionId && (
                 <div
                   style={{
                     marginTop: 12,
@@ -788,7 +814,7 @@ const SOPPage = () => {
                       fontWeight: 700,
                     }}
                   >
-                    ✅ 紀錄已儲存（ID: {savedExecutionId}）
+                    ✅ 紀錄已儲存（ID: {ds.savedExecutionId}）
                   </div>
                   <button
                     onClick={downloadReport}
@@ -913,16 +939,16 @@ const SOPPage = () => {
                         gap: 10,
                         marginBottom: 10,
                         cursor: "pointer",
-                        color: safetyChecked[i] ? "#57ab5a" : "#cdd9e5",
+                        color: ds.safetyChecked[i] ? "#57ab5a" : "#cdd9e5",
                       }}
                     >
                       <input
                         type="checkbox"
-                        checked={safetyChecked[i]}
+                        checked={ds.safetyChecked[i]}
                         onChange={() => {
-                          const u = [...safetyChecked];
+                          const u = [...ds.safetyChecked];
                           u[i] = !u[i];
-                          setSafetyChecked(u);
+                          updateDS(selectedDevice, { safetyChecked: u });
                         }}
                         style={{
                           marginTop: 3,
