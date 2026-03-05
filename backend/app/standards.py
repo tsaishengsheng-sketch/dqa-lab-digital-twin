@@ -24,54 +24,37 @@ from typing import Dict, List, Any, Optional
 
 
 def _steps_single_temp(temp: float, duration_h: int, mode: str = "high") -> list:
-    """單一溫度（乾熱/冷測）的標準步驟"""
+    """單一溫度（乾熱/冷測）執行中步驟 — 啟動後才顯示，全部不自動勾選"""
     direction = "高溫" if mode == "high" else "低溫"
-    action = "升溫" if mode == "high" else "降溫"
     return [
         {
             "step_id": 1,
-            "name": "設備開機與預檢",
-            "description": "確認電源、保險絲、水箱水位正常，記錄初始外觀狀態。",
-            "requires_photo": True,
+            "name": f"確認{'升' if mode == 'high' else '降'}溫曲線正常",
+            "description": f"監控溫度曲線，確認正在{'升' if mode == 'high' else '降'}溫至 {temp}°C，速率符合標準要求，無異常跳動。",
+            "requires_photo": False,
             "requires_parameters": False,
             "optional": False,
         },
         {
             "step_id": 2,
-            "name": f"設定{direction}測試參數",
-            "description": f"設定目標溫度 {temp}°C，持續 {duration_h} 小時，確認速率設定正確。",
-            "requires_photo": False,
-            "requires_parameters": True,
-            "optional": False,
-            "parameters_schema": {
-                "type": "object",
-                "properties": {
-                    "temperature": {
-                        "type": "number",
-                        "title": f"目標溫度 (°C)",
-                        "default": temp,
-                    },
-                    "duration": {
-                        "type": "integer",
-                        "title": "持續時間 (小時)",
-                        "default": duration_h,
-                    },
-                },
-                "required": ["temperature", "duration"],
-            },
-        },
-        {
-            "step_id": 3,
-            "name": "啟動並監控測試",
-            "description": f"按下 RUN 鍵，確認{action}過程正常，監控溫度曲線穩定在目標值 ±2°C 內。",
+            "name": f"確認達到目標溫度 {temp}°C",
+            "description": f"確認溫度已穩定在 {temp}°C ± 容差範圍內，開始計時 {duration_h} 小時停留。",
             "requires_photo": False,
             "requires_parameters": False,
             "optional": False,
         },
         {
+            "step_id": 3,
+            "name": f"{direction}停留中期確認",
+            "description": f"停留時間過半時確認溫度仍穩定，設備與樣品無異常。",
+            "requires_photo": False,
+            "requires_parameters": False,
+            "optional": True,
+        },
+        {
             "step_id": 4,
-            "name": "測試完成確認",
-            "description": f"確認 {duration_h} 小時{direction}測試完成，設備無異常，拍照記錄。",
+            "name": f"{duration_h}h 停留完成，拍照記錄",
+            "description": f"確認已完成 {duration_h} 小時{direction}停留，拍照記錄設備狀態與樣品外觀。",
             "requires_photo": True,
             "requires_parameters": False,
             "optional": False,
@@ -90,77 +73,45 @@ def _steps_single_temp(temp: float, duration_h: int, mode: str = "high") -> list
 def _steps_cycle(
     low: float, high: float, cycles: int, humidity: Optional[float] = None
 ) -> list:
-    """循環測試（溫度循環/濕熱循環）的標準步驟"""
-    humi_note = f"，濕度設定 {humidity}%RH" if humidity else ""
+    """循環測試（溫度循環/濕熱循環）執行中步驟 — 啟動後才顯示，全部不自動勾選"""
+    humi_note = f"，濕度 {humidity}%RH" if humidity else ""
     return [
         {
             "step_id": 1,
-            "name": "設備開機與預檢",
-            "description": "確認電源、保險絲、水箱水位正常，記錄初始外觀狀態。",
-            "requires_photo": True,
+            "name": "確認第一循環升降溫曲線正常",
+            "description": f"監控第一個循環的升降溫速率，確認曲線符合標準要求{humi_note}，無異常。",
+            "requires_photo": False,
             "requires_parameters": False,
             "optional": False,
         },
         {
             "step_id": 2,
-            "name": "設定循環測試參數",
-            "description": f"設定低溫 {low}°C，高溫 {high}°C，{cycles} 個循環{humi_note}。確認各參數正確。",
+            "name": f"確認高溫 {high}°C 停留正常",
+            "description": f"確認溫度穩定在 {high}°C ± 容差，開始計時高溫停留。",
             "requires_photo": False,
-            "requires_parameters": True,
+            "requires_parameters": False,
             "optional": False,
-            "parameters_schema": {
-                "type": "object",
-                "properties": {
-                    "low_temp": {
-                        "type": "number",
-                        "title": "低溫 (°C)",
-                        "default": low,
-                    },
-                    "high_temp": {
-                        "type": "number",
-                        "title": "高溫 (°C)",
-                        "default": high,
-                    },
-                    "cycles": {
-                        "type": "integer",
-                        "title": "循環次數",
-                        "default": cycles,
-                    },
-                    **(
-                        {
-                            "humidity": {
-                                "type": "number",
-                                "title": "濕度 (%RH)",
-                                "default": humidity,
-                            }
-                        }
-                        if humidity
-                        else {}
-                    ),
-                },
-                "required": ["low_temp", "high_temp", "cycles"],
-            },
         },
         {
             "step_id": 3,
-            "name": "啟動並監控測試",
-            "description": "按下 RUN 鍵，確認升降溫速率符合標準要求，監控每個循環的溫度曲線。",
+            "name": f"確認低溫 {low}°C 停留正常",
+            "description": f"確認溫度穩定在 {low}°C ± 容差，開始計時低溫停留。",
             "requires_photo": False,
             "requires_parameters": False,
             "optional": False,
         },
         {
             "step_id": 4,
-            "name": "中期檢查",
-            "description": "測試進行中定期檢查，確認每個循環的高低溫停留時間正確，有異常立即停止。",
+            "name": "中期循環檢查",
+            "description": f"循環過半時確認每個循環的高低溫停留時間正確，有異常立即停止。",
             "requires_photo": False,
             "requires_parameters": False,
             "optional": True,
         },
         {
             "step_id": 5,
-            "name": "測試完成確認",
-            "description": f"確認 {cycles} 個循環全部完成，設備無異常，拍照記錄。",
+            "name": f"全部 {cycles} 循環完成，拍照記錄",
+            "description": f"確認 {cycles} 個循環全部完成，設備無異常，拍照記錄最終狀態。",
             "requires_photo": True,
             "requires_parameters": False,
             "optional": False,
