@@ -30,13 +30,14 @@ const SAFETY_CHECKS = [
 const ACTIVE_STATUSES = ["RUNNING", "PAUSED"];
 const MAX_CHART_POINTS = 60;
 
+// 與 Dashboard.jsx 保持一致的 STATUS_CONFIG，統一加上 label
 const STATUS_CONFIG = {
-  OFFLINE: { color: "#484f58", bg: "#21262d" },
-  IDLE: { color: "#8b949e", bg: "#21262d" },
-  RUNNING: { color: "#3fb950", bg: "#0f2318" },
-  PAUSED: { color: "#f0a500", bg: "#2d1f00" },
-  FINISHING: { color: "#58a6ff", bg: "#0d1f33" },
-  EMERGENCY: { color: "#f85149", bg: "#2d0f0f" },
+  OFFLINE: { color: "#484f58", bg: "#21262d", label: "OFFLINE" },
+  IDLE: { color: "#8b949e", bg: "#21262d", label: "IDLE" },
+  RUNNING: { color: "#3fb950", bg: "#0f2318", label: "RUNNING" },
+  PAUSED: { color: "#f0a500", bg: "#2d1f00", label: "PAUSED" },
+  FINISHING: { color: "#58a6ff", bg: "#0d1f33", label: "FINISHING" },
+  EMERGENCY: { color: "#f85149", bg: "#2d0f0f", label: "EMERGENCY" },
 };
 
 // ── 各設備獨立 state 初始值 ──────────────────────────────
@@ -472,6 +473,7 @@ const SOPPage = () => {
       }));
       const res = await axios.post(`${API}/api/sop-executions/`, {
         sop_id: ds.activeSop.sop_id,
+        device_id: selectedDevice,
         steps,
       });
       updateDS(selectedDevice, { savedExecutionId: res.data.id });
@@ -502,13 +504,13 @@ const SOPPage = () => {
                 letterSpacing: 0.5,
               }}
             >
-              {data.status}
+              {sc.label}
             </span>
             <span className="update-time">{data.timestamp}</span>
           </div>
         </div>
 
-        {/* 設備選擇器 */}
+        {/* 設備選擇器：每顆按鈕即時反映各自設備狀態顏色 */}
         <div
           style={{
             background: "#161b22",
@@ -532,8 +534,9 @@ const SOPPage = () => {
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {DEVICE_IDS.map((id) => {
               const d = allDevices[id];
-              const s = STATUS_CONFIG[d?.status] || STATUS_CONFIG.OFFLINE;
-              const active = id === selectedDevice;
+              const devStatus = d?.status || "OFFLINE";
+              const s = STATUS_CONFIG[devStatus] || STATUS_CONFIG.OFFLINE;
+              const isSelected = id === selectedDevice;
               return (
                 <button
                   key={id}
@@ -544,13 +547,31 @@ const SOPPage = () => {
                     fontSize: 11,
                     cursor: "pointer",
                     fontFamily: "monospace",
-                    fontWeight: active ? 700 : 400,
-                    border: `1px solid ${active ? s.color : "#30363d"}`,
-                    background: active ? s.bg : "#0d1117",
-                    color: active ? s.color : "#8b949e",
+                    fontWeight: isSelected ? 700 : 400,
+                    // 選中：使用該設備狀態色作為邊框與背景
+                    // 未選中：也顯示狀態色，但背景較淡、邊框用 30% 透明度
+                    border: `1px solid ${isSelected ? s.color : s.color + "66"}`,
+                    background: isSelected ? s.bg : "#0d1117",
+                    color: isSelected ? s.color : s.color + "99",
                     transition: "all .15s",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
                   }}
                 >
+                  {/* 狀態 dot */}
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      background: s.color,
+                      flexShrink: 0,
+                      // RUNNING 時加發光效果
+                      boxShadow:
+                        devStatus === "RUNNING" ? `0 0 6px ${s.color}` : "none",
+                    }}
+                  />
                   {id.replace("KSON_", "")}
                 </button>
               );
@@ -630,7 +651,7 @@ const SOPPage = () => {
                   border: `1px solid ${sc.color}44`,
                 }}
               >
-                {selectedDevice} — {data.status}
+                {selectedDevice} — {sc.label}
               </span>
             </div>
             <p className="task-desc">

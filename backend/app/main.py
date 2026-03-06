@@ -159,15 +159,10 @@ async def normal_stop(device_id: str):
 
 # ============================================================
 # 物理模擬引擎
+# 注意：依照 ISO/IEC 17025:2017 第 7.5 條（技術記錄）及
+#       第 8.4 條（記錄控制），所有量測數據須永久保存，
+#       不得自動刪除。儲存期限依合約義務及法規要求決定。
 # ============================================================
-
-
-def _cleanup_old_data(db):
-    cutoff = datetime.datetime.now() - datetime.timedelta(days=7)
-    deleted = db.query(DeviceData).filter(DeviceData.timestamp < cutoff).delete()
-    if deleted > 0:
-        print(f"🧹 [DB] 清理了 {deleted} 筆 7 天前的舊數據")
-    db.commit()
 
 
 async def data_simulator():
@@ -241,7 +236,7 @@ async def data_simulator():
                 if write_counter >= 10:
                     db.commit()
                     write_counter = 0
-                    _cleanup_old_data(db)
+                    # ISO/IEC 17025:2017 §7.5 & §8.4：技術記錄不得自動刪除
 
             except Exception as e:
                 print(f"Simulator Error: {e}")

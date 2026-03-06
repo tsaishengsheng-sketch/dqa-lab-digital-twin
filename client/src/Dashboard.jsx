@@ -12,6 +12,7 @@ import {
 
 const API = "http://localhost:8000";
 
+// 與 SOPPage.jsx 保持一致的 STATUS_CONFIG
 const STATUS_CONFIG = {
   OFFLINE: { color: "#484f58", bg: "#21262d", label: "OFFLINE" },
   IDLE: { color: "#8b949e", bg: "#21262d", label: "IDLE" },
@@ -166,7 +167,6 @@ const Dashboard = () => {
       try {
         const res = await axios.get(`${API}/api/devices`);
         setDevices(res.data);
-        // 用 CH01 的溫度代表趨勢圖
         const ch01 = res.data.find((d) => d.device_id === "KSON_CH01");
         if (ch01) {
           setHistory((prev) => [
@@ -341,7 +341,15 @@ const Dashboard = () => {
           >
             <thead>
               <tr style={{ borderBottom: "1px solid #30363d" }}>
-                {["ID", "SOP ID", "執行時間", "報告"].map((h) => (
+                {[
+                  "ID",
+                  "設備",
+                  "SOP ID",
+                  "執行人員",
+                  "測試開始",
+                  "紀錄建立",
+                  "報告",
+                ].map((h) => (
                   <th
                     key={h}
                     style={{
@@ -365,6 +373,16 @@ const Dashboard = () => {
                   <td
                     style={{
                       padding: "8px 12px",
+                      color: "#8b949e",
+                      fontFamily: "monospace",
+                      fontSize: 11,
+                    }}
+                  >
+                    {ex.device_id || "—"}
+                  </td>
+                  <td
+                    style={{
+                      padding: "8px 12px",
                       color: "#cdd9e5",
                       fontFamily: "monospace",
                     }}
@@ -372,6 +390,26 @@ const Dashboard = () => {
                     {ex.sop_id}
                   </td>
                   <td style={{ padding: "8px 12px", color: "#8b949e" }}>
+                    {ex.operator || <span style={{ color: "#484f58" }}>—</span>}
+                  </td>
+                  <td
+                    style={{
+                      padding: "8px 12px",
+                      color: "#8b949e",
+                      fontSize: 11,
+                    }}
+                  >
+                    {ex.test_started_at || (
+                      <span style={{ color: "#484f58" }}>—</span>
+                    )}
+                  </td>
+                  <td
+                    style={{
+                      padding: "8px 12px",
+                      color: "#484f58",
+                      fontSize: 11,
+                    }}
+                  >
                     {ex.created_at}
                   </td>
                   <td style={{ padding: "8px 12px" }}>
