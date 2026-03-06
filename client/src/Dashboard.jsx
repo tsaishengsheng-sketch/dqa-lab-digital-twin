@@ -12,7 +12,6 @@ import {
 
 const API = "http://localhost:8000";
 
-// 與 SOPPage.jsx 保持一致的 STATUS_CONFIG
 const STATUS_CONFIG = {
   OFFLINE: { color: "#484f58", bg: "#21262d", label: "OFFLINE" },
   IDLE: { color: "#8b949e", bg: "#21262d", label: "IDLE" },
@@ -159,7 +158,8 @@ const DeviceCard = ({ device }) => {
 // ── 主元件 ────────────────────────────────────────────────
 const Dashboard = () => {
   const [devices, setDevices] = useState([]);
-  const [history, setHistory] = useState([]);
+  const [trendDevice, setTrendDevice] = useState("KSON_CH01");
+  const [historyMap, setHistoryMap] = useState({});
   const [executions, setExecutions] = useState([]);
 
   useEffect(() => {
@@ -167,17 +167,21 @@ const Dashboard = () => {
       try {
         const res = await axios.get(`${API}/api/devices`);
         setDevices(res.data);
-        const ch01 = res.data.find((d) => d.device_id === "KSON_CH01");
-        if (ch01) {
-          setHistory((prev) => [
-            ...prev.slice(-59),
-            {
-              time: ch01.timestamp,
-              temperature: ch01.temperature,
-              humidity: ch01.humidity,
-            },
-          ]);
-        }
+        setHistoryMap((prev) => {
+          const next = { ...prev };
+          res.data.forEach((d) => {
+            const prevList = next[d.device_id] || [];
+            next[d.device_id] = [
+              ...prevList.slice(-59),
+              {
+                time: d.timestamp,
+                temperature: d.temperature,
+                humidity: d.humidity,
+              },
+            ];
+          });
+          return next;
+        });
       } catch (err) {}
     };
     const interval = setInterval(fetchDevices, 1000);
@@ -247,22 +251,70 @@ const Dashboard = () => {
         ))}
       </div>
 
-      {/* 趨勢圖 (CH01) */}
+      {/* 趨勢圖 — 可切換設備 */}
       <div style={{ ...card, marginBottom: 24 }}>
+        {/* 標題列 + 設備切換按鈕 */}
         <div
           style={{
-            color: "#8b949e",
-            fontSize: 11,
-            fontWeight: 600,
-            letterSpacing: 1,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
             marginBottom: 16,
           }}
         >
-          KSON_CH01 — TEMP / HUMI TREND（最近 60 秒）
+          <div
+            style={{
+              color: "#8b949e",
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: 1,
+            }}
+          >
+            {trendDevice} — TEMP / HUMI TREND（最近 60 秒）
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {devices.map((d) => {
+              const sc = STATUS_CONFIG[d.status] || STATUS_CONFIG.OFFLINE;
+              const isSelected = d.device_id === trendDevice;
+              return (
+                <button
+                  key={d.device_id}
+                  onClick={() => setTrendDevice(d.device_id)}
+                  style={{
+                    padding: "3px 10px",
+                    borderRadius: 6,
+                    fontSize: 11,
+                    cursor: "pointer",
+                    fontFamily: "monospace",
+                    border: `1px solid ${isSelected ? sc.color : sc.color + "66"}`,
+                    background: isSelected ? sc.bg : "#0d1117",
+                    color: isSelected ? sc.color : sc.color + "99",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    transition: "all .15s",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      background: sc.color,
+                      flexShrink: 0,
+                      boxShadow:
+                        d.status === "RUNNING" ? `0 0 6px ${sc.color}` : "none",
+                    }}
+                  />
+                  {d.device_id.replace("KSON_", "")}
+                </button>
+              );
+            })}
+          </div>
         </div>
         <ResponsiveContainer width="100%" height={220}>
           <LineChart
-            data={history}
+            data={historyMap[trendDevice] || []}
             margin={{ top: 5, right: 16, left: -10, bottom: 5 }}
           >
             <CartesianGrid
@@ -274,7 +326,7 @@ const Dashboard = () => {
               dataKey="time"
               stroke="#30363d"
               tick={{ fontSize: 10, fill: "#484f58" }}
-              hide={history.length < 2}
+              hide={(historyMap[trendDevice] || []).length < 2}
             />
             <YAxis
               stroke="#30363d"
@@ -341,15 +393,7 @@ const Dashboard = () => {
           >
             <thead>
               <tr style={{ borderBottom: "1px solid #30363d" }}>
-                {[
-                  "ID",
-                  "設備",
-                  "SOP ID",
-                  "執行人員",
-                  "測試開始",
-                  "紀錄建立",
-                  "報告",
-                ].map((h) => (
+                {["ID", "SOP ID", "執行時間", "報告"].map((h) => (
                   <th
                     key={h}
                     style={{
@@ -373,16 +417,6 @@ const Dashboard = () => {
                   <td
                     style={{
                       padding: "8px 12px",
-                      color: "#8b949e",
-                      fontFamily: "monospace",
-                      fontSize: 11,
-                    }}
-                  >
-                    {ex.device_id || "—"}
-                  </td>
-                  <td
-                    style={{
-                      padding: "8px 12px",
                       color: "#cdd9e5",
                       fontFamily: "monospace",
                     }}
@@ -390,26 +424,6 @@ const Dashboard = () => {
                     {ex.sop_id}
                   </td>
                   <td style={{ padding: "8px 12px", color: "#8b949e" }}>
-                    {ex.operator || <span style={{ color: "#484f58" }}>—</span>}
-                  </td>
-                  <td
-                    style={{
-                      padding: "8px 12px",
-                      color: "#8b949e",
-                      fontSize: 11,
-                    }}
-                  >
-                    {ex.test_started_at || (
-                      <span style={{ color: "#484f58" }}>—</span>
-                    )}
-                  </td>
-                  <td
-                    style={{
-                      padding: "8px 12px",
-                      color: "#484f58",
-                      fontSize: 11,
-                    }}
-                  >
                     {ex.created_at}
                   </td>
                   <td style={{ padding: "8px 12px" }}>

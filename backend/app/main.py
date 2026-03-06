@@ -250,6 +250,18 @@ async def data_simulator():
                                 timestamp=datetime.datetime.now(),
                             )
                         )
+                        # 同步更新 DeviceState，確保重啟後能恢復正確狀態
+                        state = db.get(DeviceState, device_id)
+                        if state is None:
+                            state = DeviceState(device_id=device_id)
+                            db.add(state)
+                        state.status = item.get("status", "IDLE")
+                        state.temperature = item.get("temperature", 25.0)
+                        state.humidity = item.get("humidity", 55.0)
+                        state.running_sop_id = item.get("running_sop_id")
+                        state.running_sop_name = item.get("running_sop_name")
+                        state.standard_id = item.get("standard_id")
+                        state.updated_at = datetime.datetime.now(datetime.timezone.utc)
 
                 if write_counter >= 10:
                     db.commit()
