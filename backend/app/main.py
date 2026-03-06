@@ -299,7 +299,7 @@ async def startup_event():
         s = saved_states.get(device_id)
         if s:
             # 恢復上次狀態（RUNNING 恢復為 PAUSED，避免無人監控下自動繼續）
-            restored_status = "PAUSED" if s.status == "RUNNING" else s.status
+            restored_status = s.status
             cache[device_id] = {
                 "temperature": s.temperature,
                 "humidity": s.humidity,
