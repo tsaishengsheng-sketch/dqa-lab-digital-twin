@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-03-06（續）
+
+- **feat**: `models.py` 新增 `DeviceState` 表，儲存設備狀態、溫度、active_sop_json，支援重啟後恢復
+- **feat**: `main.py` 啟動時從 `DeviceState` 表讀回上次狀態，RUNNING 直接恢復（不降級為 PAUSED）
+- **feat**: `main.py` 模擬器每 10 秒同步寫入 `DeviceState`，確保狀態持久化
+- **feat**: `main.py` 緊急停止、正常停止、FINISHING→IDLE 時立即同步 `DeviceState`
+- **feat**: `sop.py` 啟動 SOP 時將 `active_sop_json` 寫入 `DeviceState`
+- **feat**: `main.py` `/api/devices` 回傳 `active_sop_json`，供前端重啟後恢復步驟清單
+- **feat**: `SOPPage.jsx` 輪詢時自動從 `active_sop_json` 恢復 `activeSop` 與步驟清單
+- **fix**: `App.jsx` `minHeight: 100vh` 改為 `height: 100vh`，修復 SOPPage layout 溢出蓋到其他頁面
+- **fix**: `SOPPage.css` `width: 100vw` 改為 `width: 100%`，修復 layout 滲出問題
+- **feat**: `SOPPage.jsx` HUMI PV 整合進 TEMP/HUMI TREND 卡片右上角，避免左側卡片被裁切
+- **feat**: `Dashboard.jsx` 趨勢圖改為可切換 5 台設備，各自維護獨立 history buffer
+- **fix**: `dev_start.sh` 啟動前強制釋放 port 8000 / 5173，避免 make clean 後殘留程序
+- **chore**: 刪除根目錄多餘的 `test.db`
+- **chore**: 刪除 `backend/app/database.py`（功能已在 models.py，無任何引用）
+- **chore**: 刪除 `backend/templates/`（與 docs/templates/ 重複）
+- **docs**: `architecture.md` 資料庫表格新增 `device_states`、完成度統計新增持久化/恢復/趨勢圖切換條目
+
+---
+
 ## 2026-03-06
 
 - **fix**: 移除 `_cleanup_old_data()`，依 ISO/IEC 17025:2017 §7.5 & §8.4 量測數據永久保存，不自動刪除（`main.py`）

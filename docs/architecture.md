@@ -149,6 +149,7 @@ STANDARD_TREE
 | 表格 | 狀態 | 說明 |
 |------|------|------|
 | `device_data` | ✅ | 歷史溫濕度（每 10 秒，永久保存）|
+| `device_states` | ✅ | 設備狀態持久化（status、temperature、active_sop_json，重啟後恢復用）|
 | `sop_executions` | ✅ | 執行歷程主表（含 operator、device_id、test_started_at、test_ended_at）|
 | `step_records` | ✅ | 每步驟完成狀態 |
 | `sop_templates` | ✅ | 自訂 SOP（DB 版，補充 standards.py） |
@@ -233,6 +234,9 @@ GET /api/reports/csv/{id}（下載 CSV，PASS/FAIL 工程師填寫）
 | 執行人員記錄 | ✅ | SopExecution 新增 operator、device_id、test_started_at、test_ended_at |
 | 執行紀錄 API | ✅ | sop_execution router |
 | CSV 測試報告 | ✅ | ISO 17025 格式，big5 Excel 相容，PASS/FAIL 人工填寫 |
+| 設備狀態持久化 | ✅ | DeviceState 表，每 10 秒同步，重啟後自動恢復 RUNNING/PAUSED/EMERGENCY |
+| SOP 重啟恢復 | ✅ | active_sop_json 存 DB，前端輪詢自動恢復步驟清單 |
+| 趨勢圖多設備切換 | ✅ | Dashboard 趨勢圖可切換 5 台設備，各自獨立 history buffer |
 | dev_start.sh | ✅ | socat 串口重試偵測、crash 自動 cleanup、保留日誌供查閱 |
 | AI 輔助模組 | ⏳ | 治具助手、排程預估、法規諮詢 |
 | 報告半自動整合 | ⏳ | 載入照片 + 從 CSV 自動抓取數據填入模板 |
