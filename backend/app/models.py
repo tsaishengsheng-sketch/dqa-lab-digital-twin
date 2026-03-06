@@ -31,25 +31,17 @@ class SopTemplate(Base):
 
 
 # ---------- SOP 執行主表 ----------
-# ISO/IEC 17025:2017 §7.5.1：技術記錄應包括每項實驗室活動的日期與責任人
 class SopExecution(Base):
     __tablename__ = "sop_executions"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     sop_id: Mapped[str] = mapped_column(String, index=True)
     device_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    operator: Mapped[Optional[str]] = mapped_column(
-        String, nullable=True
-    )  # §7.5.1 責任人
+    operator: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    test_started_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    test_ended_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc)
-    )
-    # §7.5.2：技術記錄需記錄實際測試開始與結束時間，供報告查詢原始數據使用
-    test_started_at: Mapped[Optional[datetime.datetime]] = mapped_column(
-        DateTime, nullable=True
-    )
-    test_ended_at: Mapped[Optional[datetime.datetime]] = mapped_column(
-        DateTime, nullable=True
     )
 
 
@@ -66,8 +58,6 @@ class StepRecord(Base):
 
 
 # ---------- 裝置數據記錄 ----------
-# ISO/IEC 17025:2017 §7.5.1 & §8.4.2：原始量測數據須永久保存，
-# 儲存期限依合約義務及法規要求決定，不得自動刪除。
 class DeviceData(Base):
     __tablename__ = "device_data"
 
@@ -79,6 +69,22 @@ class DeviceData(Base):
     temperature: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     humidity: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     raw_data: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+# ---------- 設備狀態持久化 ----------
+class DeviceState(Base):
+    __tablename__ = "device_states"
+
+    device_id: Mapped[str] = mapped_column(String, primary_key=True)
+    status: Mapped[str] = mapped_column(String, default="IDLE")
+    temperature: Mapped[float] = mapped_column(Float, default=25.0)
+    humidity: Mapped[float] = mapped_column(Float, default=55.0)
+    running_sop_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    running_sop_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    standard_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc)
+    )
 
 
 # ---------- 異常紀錄 ----------

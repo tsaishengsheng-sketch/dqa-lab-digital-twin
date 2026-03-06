@@ -7,7 +7,7 @@ from .sop import router as sop_router, DEVICE_IDS
 from .sop_execution import router as execution_router
 from .reports import router as reports_router
 from .errors import router as errors_router
-from .models import SessionLocal, DeviceData, ErrorLog
+from .models import SessionLocal, DeviceData, ErrorLog, DeviceState
 from .standards import get_ramp_rate, get_standard
 
 app = FastAPI(title="KSON AICM Digital Twin Server")
@@ -29,6 +29,23 @@ app.add_middleware(
 # ============================================================
 # 工具函式
 # ============================================================
+
+
+def _save_device_state(device_id: str, item: dict):
+    """將目前設備狀態寫回 DB，供重啟後恢復使用"""
+    with SessionLocal() as db:
+        state = db.get(DeviceState, device_id)
+        if state is None:
+            state = DeviceState(device_id=device_id)
+            db.add(state)
+        state.status = item.get("status", "IDLE")
+        state.temperature = item.get("temperature", 25.0)
+        state.humidity = item.get("humidity", 55.0)
+        state.running_sop_id = item.get("running_sop_id")
+        state.running_sop_name = item.get("running_sop_name")
+        state.standard_id = item.get("standard_id")
+        state.updated_at = datetime.datetime.now(datetime.timezone.utc)
+        db.commit()
 
 
 def _get_device(device_id: str) -> dict:
@@ -129,6 +146,7 @@ async def emergency_stop(device_id: str):
             "running_sop_name": "🚨 緊急停止中 - 待確認安全",
         }
     )
+    _save_device_state(device_id, device)
     print(f"🚨 [{device_id}] EMERGENCY STOP")
     return {"status": "success", "message": f"{device_id} 緊急停止已觸發"}
 
@@ -141,6 +159,7 @@ async def pause_test(device_id: str):
         device["status"] = "PAUSED"
     elif device["status"] == "PAUSED":
         device["status"] = "RUNNING"
+    _save_device_state(device_id, device)
     return {"status": "success"}
 
 
@@ -154,14 +173,12 @@ async def normal_stop(device_id: str):
             "running_sop_name": "系統自動降溫收尾中...",
         }
     )
+    _save_device_state(device_id, device)
     return {"status": "success"}
 
 
 # ============================================================
 # 物理模擬引擎
-# 注意：依照 ISO/IEC 17025:2017 第 7.5 條（技術記錄）及
-#       第 8.4 條（記錄控制），所有量測數據須永久保存，
-#       不得自動刪除。儲存期限依合約義務及法規要求決定。
 # ============================================================
 
 
@@ -210,6 +227,7 @@ async def data_simulator():
                             item["temperature"] = 25.0
                             item["status"] = "IDLE"
                             item["running_sop_name"] = "STANDBY"
+                            _save_device_state(device_id, item)
                             print(f"✅ [{device_id}] 降溫完成，回待機。")
 
                     elif status == "EMERGENCY":
@@ -236,7 +254,6 @@ async def data_simulator():
                 if write_counter >= 10:
                     db.commit()
                     write_counter = 0
-                    # ISO/IEC 17025:2017 §7.5 & §8.4：技術記錄不得自動刪除
 
             except Exception as e:
                 print(f"Simulator Error: {e}")
@@ -256,18 +273,38 @@ async def startup_event():
 
     init_db()
 
-    # 5 台獨立模擬器，各自起始溫度略有差異增加真實感
-    app.state.AICM_CACHE = {
-        device_id: {
-            "temperature": round(25.0 + random.uniform(-1.0, 1.0), 2),
-            "humidity": round(55.0 + random.uniform(-2.0, 2.0), 1),
-            "status": "IDLE",
-            "running_sop_name": "STANDBY",
-            "running_sop_id": None,
-            "standard_id": None,
-        }
-        for device_id in DEVICE_IDS
-    }
+    # 從 DB 讀回上次狀態，若無紀錄則初始化為 IDLE
+    with SessionLocal() as db:
+        saved_states = {s.device_id: s for s in db.query(DeviceState).all()}
+
+    cache = {}
+    for device_id in DEVICE_IDS:
+        s = saved_states.get(device_id)
+        if s:
+            # 恢復上次狀態（RUNNING 恢復為 PAUSED，避免無人監控下自動繼續）
+            restored_status = "PAUSED" if s.status == "RUNNING" else s.status
+            cache[device_id] = {
+                "temperature": s.temperature,
+                "humidity": s.humidity,
+                "status": restored_status,
+                "running_sop_name": s.running_sop_name or "STANDBY",
+                "running_sop_id": s.running_sop_id,
+                "standard_id": s.standard_id,
+            }
+            print(
+                f"🔄 [{device_id}] 恢復狀態：{restored_status}，溫度：{s.temperature}°C"
+            )
+        else:
+            cache[device_id] = {
+                "temperature": round(25.0 + random.uniform(-1.0, 1.0), 2),
+                "humidity": round(55.0 + random.uniform(-2.0, 2.0), 1),
+                "status": "IDLE",
+                "running_sop_name": "STANDBY",
+                "running_sop_id": None,
+                "standard_id": None,
+            }
+
+    app.state.AICM_CACHE = cache
 
     sim_task = asyncio.create_task(data_simulator())
     background_tasks.add(sim_task)
