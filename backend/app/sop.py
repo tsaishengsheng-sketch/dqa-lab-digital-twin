@@ -2,10 +2,12 @@ from fastapi import APIRouter, HTTPException, Body, Request
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import json
-from .models import SessionLocal, SopTemplate, DeviceState
+from datetime import datetime
+from .models import SessionLocal, SopTemplate, DeviceState, SopExecution, StepRecord
 from .standards import STANDARDS_AND_SOPS, get_standard_tree
 
 router = APIRouter()
+execution_router = APIRouter(prefix="/api/sop-executions", tags=["sop-executions"])
 
 DEVICE_IDS = ["KSON_CH01", "KSON_CH02", "KSON_CH03", "KSON_CH04", "KSON_CH05"]
 
@@ -152,3 +154,105 @@ async def start_sop(request: Request, payload: Dict[str, Any] = Body(...)):
 
     print(f"🔥 [{device_id}] Started SOP: {sop_id} ({sop_name})")
     return {"status": "success", "message": f"{device_id} 已啟動 {sop_name}"}
+
+
+# ============================================================
+# SOP 執行紀錄（原 sop_execution.py）
+# ============================================================
+
+
+class StepRecordSchema(BaseModel):
+    step_id: int
+    completed: bool
+    parameters: Optional[Dict[str, Any]] = None
+    photos: Optional[List[str]] = None
+
+
+class ExecutionCreate(BaseModel):
+    sop_id: str
+    steps: List[StepRecordSchema]
+
+
+class ExecutionResponse(BaseModel):
+    id: int
+    sop_id: str
+    created_at: datetime
+    steps: List[StepRecordSchema]
+
+
+@execution_router.post("/", response_model=ExecutionResponse)
+def create_execution(data: ExecutionCreate):
+    db = SessionLocal()
+    try:
+        execution = SopExecution(sop_id=data.sop_id)
+        db.add(execution)
+        db.commit()
+        db.refresh(execution)
+
+        steps_response = []
+        for step in data.steps:
+            record = StepRecord(
+                execution_id=execution.id,
+                step_id=step.step_id,
+                completed=1 if step.completed else 0,
+                parameters=json.dumps(step.parameters, ensure_ascii=False)
+                if step.parameters
+                else None,
+                photos=json.dumps(step.photos, ensure_ascii=False)
+                if step.photos
+                else None,
+            )
+            db.add(record)
+            db.commit()
+            db.refresh(record)
+            steps_response.append(
+                StepRecordSchema(
+                    step_id=record.step_id,
+                    completed=bool(record.completed),
+                    parameters=json.loads(record.parameters)
+                    if record.parameters
+                    else None,
+                    photos=json.loads(record.photos) if record.photos else None,
+                )
+            )
+
+        return ExecutionResponse(
+            id=execution.id,
+            sop_id=execution.sop_id,
+            created_at=execution.created_at,
+            steps=steps_response,
+        )
+    finally:
+        db.close()
+
+
+@execution_router.get("/{execution_id}", response_model=ExecutionResponse)
+def get_execution(execution_id: int):
+    db = SessionLocal()
+    try:
+        execution = (
+            db.query(SopExecution).filter(SopExecution.id == execution_id).first()
+        )
+        if not execution:
+            raise HTTPException(status_code=404, detail="Execution not found")
+
+        records = (
+            db.query(StepRecord).filter(StepRecord.execution_id == execution_id).all()
+        )
+        steps = [
+            StepRecordSchema(
+                step_id=r.step_id,
+                completed=bool(r.completed),
+                parameters=json.loads(r.parameters) if r.parameters else None,
+                photos=json.loads(r.photos) if r.photos else None,
+            )
+            for r in records
+        ]
+        return ExecutionResponse(
+            id=execution.id,
+            sop_id=execution.sop_id,
+            created_at=execution.created_at,
+            steps=steps,
+        )
+    finally:
+        db.close()

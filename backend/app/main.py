@@ -4,8 +4,7 @@ import json
 import random
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from .sop import router as sop_router, DEVICE_IDS
-from .sop_execution import router as execution_router
+from .sop import router as sop_router, execution_router, DEVICE_IDS
 from .reports import router as reports_router
 from .errors import router as errors_router
 from .models import SessionLocal, DeviceData, ErrorLog, DeviceState

@@ -232,7 +232,7 @@ GET /api/reports/csv/{id}（下載 CSV，PASS/FAIL 工程師填寫）
 | 物理模擬引擎 | ✅ | 標準化升降溫，每 10 秒寫 DB |
 | 17025 記錄保存 | ✅ | 移除自動刪除，依 §7.5 & §8.4 永久保存 |
 | 執行人員記錄 | ✅ | SopExecution 新增 operator、device_id、test_started_at、test_ended_at |
-| 執行紀錄 API | ✅ | sop_execution router |
+| 執行紀錄 API | ✅ | 合併進 `sop.py`（原 `sop_execution.py`）|
 | CSV 測試報告 | ✅ | ISO 17025 格式，big5 Excel 相容，PASS/FAIL 人工填寫 |
 | 設備狀態持久化 | ✅ | DeviceState 表，每 10 秒同步，重啟後自動恢復 RUNNING/PAUSED/EMERGENCY |
 | SOP 重啟恢復 | ✅ | active_sop_json 存 DB，前端輪詢自動恢復步驟清單 |

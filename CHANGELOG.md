@@ -28,6 +28,7 @@
 - **chore**: 刪除 `docs/screenshots/demo.gif`（README 已移除引用）
 - **chore**: 刪除 `client/public/vite.svg`（Vite 預設圖示，與專案無關）
 - **chore**: `serial_reader.py` 頂部加上 Phase 3 預留說明，明確標示尚未啟用
+- **refactor**: `sop_execution.py` 合併進 `sop.py`，統一管理 SOP 相關邏輯，刪除 `sop_execution.py`
 - **docs**: `architecture.md` 通訊層 `serial_reader.py` 標記為 Phase 3 預留
 - **docs**: `README.md` 專案背景重寫，補充人為疏失風險、培訓成本與多標準對照負擔
 
