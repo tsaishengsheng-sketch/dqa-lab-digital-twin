@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-03-06
+
+- **fix**: 移除 `_cleanup_old_data()`，依 ISO/IEC 17025:2017 §7.5 & §8.4 量測數據永久保存，不自動刪除（`main.py`）
+- **feat**: `SopExecution` 新增 `operator`（責任人）、`device_id`、`test_started_at`、`test_ended_at` 欄位，符合 §7.5.1 技術記錄責任人要求（`models.py`）
+- **feat**: `sop_execution.py` 新增對應欄位的接收與回傳（`ExecutionCreate`、`ExecutionResponse`）
+- **fix**: `reports.py` 移除系統自動 PASS/FAIL 判定，改為工程師人工填寫欄位，符合 §7.8.6 & §7.8.7
+- **fix**: `reports.py` 原始數據查詢範圍改為依 `test_started_at` / `test_ended_at` 決定，符合 §7.5.2
+- **fix**: `reports.py` 移除「認可標準 Accreditation: ISO/IEC 17025:2017」錯誤宣告
+- **fix**: `reports.py` 執行紀錄列表新增 `device_id`、`operator`、`test_started_at`、`test_ended_at`
+- **feat**: `SOPPage.jsx` SELECT DEVICE 每顆按鈕即時反映各自設備狀態顏色，RUNNING 時加發光效果
+- **feat**: `SOPPage.jsx` `STATUS_CONFIG` 新增 `label` 欄位，與 `Dashboard.jsx` 完全一致
+- **fix**: `SOPPage.jsx` 控制面板狀態標籤統一使用 `sc.label` 顯示
+- **fix**: `SOPPage.jsx` `saveExecution` 補上 `device_id` 傳給後端
+- **feat**: `Dashboard.jsx` 執行紀錄表格新增「設備」、「執行人員」、「測試開始」三欄，與後端同步
+- **docs**: `README.md` 移除 demo gif（避免壞圖）、移除實驗室範圍區塊、AI 輔助模組移至最前、核心功能更新 17025 描述
+- **docs**: `architecture.md` 移除 7 天自動清理描述、更新報告架構為半自動方向、AI 流程移至數據流程圖最前、移除認證機構描述、新增本次所有功能至完成度統計
+
+---
+
 ## 2026-03-04（續）
 
 - **feat**: 新增 `ErrorLog` 表（`models.py`），記錄緊急停止事件
@@ -32,7 +51,6 @@
 - **feat**: `GET /api/sop/standards/tree` 新端點，回傳完整三層結構供前端使用
 - **feat**: `sop.py` 更新配合新 `STANDARDS_AND_SOPS` 展開方式
 - **perf**: `device_data` 寫入頻率從每秒改為每 10 秒，減少 90% 寫入量
-- **feat**: `_cleanup_old_data()` 自動清理 7 天前舊數據
 - **feat**: CSV 報告下載按鈕（儲存紀錄後顯示）
 - **fix**: CSV 報告編碼改為 big5，解決 macOS Excel 中文亂碼
 - **fix**: CSV 報告溫度數值 `round(value, 2)` 防止浮點精度問題
