@@ -24,7 +24,7 @@
     * **SOP 步驟追蹤**: 依各標準客制化步驟數，Step 1、2 自動勾選，其餘人工確認，含進度條顯示。
     * **儲存 + 下載**: 全步驟完成後可儲存執行紀錄（含 device_id），儲存後顯示「下載 CSV 測試報告」按鈕。
     * **上架安全確認**: 四項注意事項全勾才能啟動測試。
-    * **即時溫度折線圖**: 左側面板顯示 60 秒 TEMP TREND，執行中顯示目標溫度虛線參考。
+    * **即時溫濕度折線圖**: 左側面板顯示 60 秒 TEMP TREND，溫度（紅）+ 濕度（藍）雙線，含目標溫度虛線參考，X 軸顯示秒數刻度。
     * **EMERGENCY 閃爍**: 緊急停止時控制面板紅色閃爍提示。
     * **STATUS_CONFIG 統一**: SOPPage 與 Dashboard 共用同一份狀態色彩設定（含 label 欄位）。
 * **✅ 異常看板 (ErrorLog)**:
@@ -225,7 +225,7 @@ GET /api/reports/csv/{id}（下載 CSV，PASS/FAIL 工程師填寫）
 | 上架安全確認 | ✅ | 四項全勾才能啟動 |
 | 暫停/停止邏輯 | ✅ | RUNNING↔PAUSED，FINISHING→IDLE，EMERGENCY 修復 |
 | EMERGENCY 閃爍 | ✅ | 控制面板紅色閃爍提示 |
-| 即時折線圖 | ✅ | SOPPage 左側 TEMP TREND，含目標溫度虛線 |
+| 即時折線圖 | ✅ | TEMP TREND 溫度+濕度雙線，X 軸秒數刻度，含目標溫度虛線 |
 | 異常看板 | ✅ | 緊急停止自動記錄，統計卡片 + 列表 |
 | 環境測試標準 | ✅ | 6 法規，62 個測試條件，官方參數 |
 | 物理模擬引擎 | ✅ | 標準化升降溫，每 10 秒寫 DB |
@@ -233,6 +233,7 @@ GET /api/reports/csv/{id}（下載 CSV，PASS/FAIL 工程師填寫）
 | 執行人員記錄 | ✅ | SopExecution 新增 operator、device_id、test_started_at、test_ended_at |
 | 執行紀錄 API | ✅ | sop_execution router |
 | CSV 測試報告 | ✅ | ISO 17025 格式，big5 Excel 相容，PASS/FAIL 人工填寫 |
+| dev_start.sh | ✅ | socat 串口重試偵測、crash 自動 cleanup、保留日誌供查閱 |
 | AI 輔助模組 | ⏳ | 治具助手、排程預估、法規諮詢 |
 | 報告半自動整合 | ⏳ | 載入照片 + 從 CSV 自動抓取數據填入模板 |
 | 多台設備架構 | ⏳ | 動態 device_id |

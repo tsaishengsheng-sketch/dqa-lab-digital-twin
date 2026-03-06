@@ -24,6 +24,8 @@
 - **fix**: `dev_start.sh` socat 串口路徑解析改為最多重試 5 秒，避免系統較慢時抓不到路徑
 - **fix**: `dev_start.sh` `wait` 改為指定 PID（`$BACK_PID $SIM_PID $CLIENT_PID`），任一服務 crash 即觸發 cleanup
 - **fix**: `Makefile` clean 指令移除 recipe 內 `#` 注釋、移除冗餘 `|| true`
+- **docs**: `README.md` 快速啟動改用 `make install`、補上 `python backend/init_db.py` 首次初始化步驟、核心功能新增多設備同步監控描述
+- **docs**: `architecture.md` TEMP TREND 描述更新為溫濕度雙線含 X 軸、完成度統計更新折線圖說明並新增 dev_start.sh 條目
 
 ---
 
