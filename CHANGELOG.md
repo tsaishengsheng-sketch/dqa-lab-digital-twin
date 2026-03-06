@@ -20,6 +20,10 @@
 - **feat**: `Dashboard.jsx` 執行紀錄表格新增「設備」、「執行人員」、「測試開始」三欄，與後端同步
 - **docs**: `README.md` 移除 demo gif（避免壞圖）、移除實驗室範圍區塊、AI 輔助模組移至最前、核心功能更新 17025 描述
 - **docs**: `architecture.md` 移除 7 天自動清理描述、更新報告架構為半自動方向、AI 流程移至數據流程圖最前、移除認證機構描述、新增本次所有功能至完成度統計
+- **fix**: `dev_start.sh` 移除 cleanup 時自動刪除日誌（保留供 `make logs` 事後查閱）
+- **fix**: `dev_start.sh` socat 串口路徑解析改為最多重試 5 秒，避免系統較慢時抓不到路徑
+- **fix**: `dev_start.sh` `wait` 改為指定 PID（`$BACK_PID $SIM_PID $CLIENT_PID`），任一服務 crash 即觸發 cleanup
+- **fix**: `Makefile` clean 指令移除 recipe 內 `#` 注釋、移除冗餘 `|| true`
 
 ---
 
