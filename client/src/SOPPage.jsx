@@ -639,21 +639,27 @@ const SOPPage = () => {
         </div>
 
         <div className="info-card" style={{ padding: "14px 16px 10px" }}>
-          <label style={{ fontSize: 11, color: "#484f58", letterSpacing: 1 }}>
-            TEMP TREND
-          </label>
-          <TempChart data={ds.tempHistory} targetTemp={targetTemp} />
-        </div>
-
-        <div
-          className="info-card humi-card"
-          style={{ borderLeft: "3px solid #a5d6ff" }}
-        >
-          <label>HUMI PV</label>
-          <div className="value-pv">
-            {data.humidity.toFixed(1)}
-            <span className="unit">%</span>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 8,
+            }}
+          >
+            <label style={{ fontSize: 11, color: "#484f58", letterSpacing: 1 }}>
+              TEMP / HUMI TREND
+            </label>
+            <div style={{ display: "flex", gap: 12, fontSize: 11 }}>
+              <span style={{ color: "#ff7b72" }}>
+                ● {data.temperature.toFixed(1)} °C
+              </span>
+              <span style={{ color: "#a5d6ff" }}>
+                ● {data.humidity.toFixed(1)} %RH
+              </span>
+            </div>
           </div>
+          <TempChart data={ds.tempHistory} targetTemp={targetTemp} />
         </div>
       </aside>
 
