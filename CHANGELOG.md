@@ -22,6 +22,14 @@
 - **chore**: 刪除 `backend/app/database.py`（功能已在 models.py，無任何引用）
 - **chore**: 刪除 `backend/templates/`（與 docs/templates/ 重複）
 - **docs**: `architecture.md` 資料庫表格新增 `device_states`、完成度統計新增持久化/恢復/趨勢圖切換條目
+- **chore**: 刪除根目錄多餘的 `test.db`
+- **chore**: 刪除 `backend/app/database.py`（功能已在 `models.py`，無任何引用）
+- **chore**: 刪除 `backend/templates/`（與 `docs/templates/` 重複）
+- **chore**: 刪除 `docs/screenshots/demo.gif`（README 已移除引用）
+- **chore**: 刪除 `client/public/vite.svg`（Vite 預設圖示，與專案無關）
+- **chore**: `serial_reader.py` 頂部加上 Phase 3 預留說明，明確標示尚未啟用
+- **docs**: `architecture.md` 通訊層 `serial_reader.py` 標記為 Phase 3 預留
+- **docs**: `README.md` 專案背景重寫，補充人為疏失風險、培訓成本與多標準對照負擔
 
 ---
 

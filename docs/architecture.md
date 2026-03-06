@@ -164,7 +164,7 @@ STANDARD_TREE
 
 * **✅ 虛擬串口橋接器 (socat)**: 提供虛擬連線環境（macOS/Linux）
 * **✅ 慶聲溫箱模擬器 (KsonChamber)**: 模擬 KSON AICM 真實設備回傳字串
-* **⏳ RS-485/RJ45 真實串口通訊**: 對接真實 KSON 溫箱
+* **⏳ Phase 3 — RS-485/RJ45 真實串口通訊**: 對接真實 KSON 溫箱，`serial_reader.py` 已預留，尚未啟用
 
 ---
 
