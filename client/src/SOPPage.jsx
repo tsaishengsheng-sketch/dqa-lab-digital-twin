@@ -225,15 +225,31 @@ const TempChart = ({ data, targetTemp }) => {
       </div>
     );
   return (
-    <ResponsiveContainer width="100%" height={80}>
+    <ResponsiveContainer width="100%" height={120}>
       <LineChart
         data={data}
         margin={{ top: 4, right: 4, bottom: 0, left: -30 }}
       >
-        <XAxis dataKey="t" hide />
-        <YAxis
-          domain={["auto", "auto"]}
+        <XAxis
+          dataKey="t"
           tick={{ fontSize: 9, fill: "#484f58" }}
+          tickLine={false}
+          axisLine={{ stroke: "#30363d" }}
+          interval="preserveStartEnd"
+          tickFormatter={(v) => `${v}s`}
+        />
+        <YAxis
+          yAxisId="temp"
+          domain={["auto", "auto"]}
+          tick={{ fontSize: 9, fill: "#ff7b72" }}
+          width={28}
+        />
+        <YAxis
+          yAxisId="humi"
+          orientation="right"
+          domain={["auto", "auto"]}
+          tick={{ fontSize: 9, fill: "#a5d6ff" }}
+          width={28}
         />
         <Tooltip
           contentStyle={{
@@ -241,11 +257,16 @@ const TempChart = ({ data, targetTemp }) => {
             border: "1px solid #30363d",
             fontSize: 11,
           }}
-          labelFormatter={() => ""}
-          formatter={(v) => [`${v.toFixed(1)} °C`, "溫度"]}
+          labelFormatter={(v) => `${v}s`}
+          formatter={(v, name) =>
+            name === "temp"
+              ? [`${v.toFixed(1)} °C`, "溫度"]
+              : [`${v.toFixed(1)} %RH`, "濕度"]
+          }
         />
         {targetTemp != null && (
           <ReferenceLine
+            yAxisId="temp"
             y={targetTemp}
             stroke="#484f58"
             strokeDasharray="4 2"
@@ -253,9 +274,19 @@ const TempChart = ({ data, targetTemp }) => {
           />
         )}
         <Line
+          yAxisId="temp"
           type="monotone"
           dataKey="temp"
           stroke="#ff7b72"
+          dot={false}
+          strokeWidth={1.5}
+          isAnimationActive={false}
+        />
+        <Line
+          yAxisId="humi"
+          type="monotone"
+          dataKey="humi"
+          stroke="#a5d6ff"
           dot={false}
           strokeWidth={1.5}
           isAnimationActive={false}
@@ -363,7 +394,11 @@ const SOPPage = () => {
               const newTick = prevDS.tick + 1;
               const newHistory = [
                 ...prevDS.tempHistory,
-                { t: newTick, temp: current.temperature },
+                {
+                  t: newTick,
+                  temp: current.temperature,
+                  humi: current.humidity,
+                },
               ];
               next[id] = {
                 ...prevDS,
