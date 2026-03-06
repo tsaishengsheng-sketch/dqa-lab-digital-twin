@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Body, Request
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import json
-from .models import SessionLocal, SopTemplate
+from .models import SessionLocal, SopTemplate, DeviceState
 from .standards import STANDARDS_AND_SOPS, get_standard_tree
 
 router = APIRouter()
@@ -130,6 +130,25 @@ async def start_sop(request: Request, payload: Dict[str, Any] = Body(...)):
             "standard_id": sop_id,
         }
     )
+
+    # 把 active_sop 資料存入 DeviceState 供前端重啟後恢復
+    import datetime as dt
+
+    active_sop_data = {**std_data, "sop_id": sop_id, "name": sop_name}
+    active_sop_json = json.dumps(active_sop_data, ensure_ascii=False)
+    device["active_sop_json"] = active_sop_json
+    with SessionLocal() as db:
+        state = db.get(DeviceState, device_id)
+        if state is None:
+            state = DeviceState(device_id=device_id)
+            db.add(state)
+        state.status = "RUNNING"
+        state.running_sop_id = sop_id
+        state.running_sop_name = sop_name
+        state.standard_id = sop_id
+        state.active_sop_json = active_sop_json
+        state.updated_at = dt.datetime.now(dt.timezone.utc)
+        db.commit()
 
     print(f"🔥 [{device_id}] Started SOP: {sop_id} ({sop_name})")
     return {"status": "success", "message": f"{device_id} 已啟動 {sop_name}"}

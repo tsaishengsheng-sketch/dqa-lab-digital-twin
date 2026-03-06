@@ -384,7 +384,7 @@ const SOPPage = () => {
           });
           setAllDevices(map);
 
-          // 更新每台設備的 tempHistory
+          // 更新每台設備的 tempHistory，並在重啟後恢復 activeSop
           setDeviceStates((prev) => {
             const next = { ...prev };
             DEVICE_IDS.forEach((id) => {
@@ -400,9 +400,67 @@ const SOPPage = () => {
                   humi: current.humidity,
                 },
               ];
+
+              // 若後端有 active_sop_json 但前端 activeSop 是 null，則恢復
+              let restoredSop = prevDS.activeSop;
+              if (!restoredSop && current.active_sop_json) {
+                try {
+                  const parsed = JSON.parse(current.active_sop_json);
+                  // 補上預設步驟（後端 active_sop_json 不含 steps）
+                  if (!parsed.steps || parsed.steps.length === 0) {
+                    parsed.steps = [
+                      {
+                        step_id: 1,
+                        name: "設備開機與預檢",
+                        description:
+                          "確認電源、保險絲、水箱水位正常，記錄初始外觀狀態。",
+                        optional: false,
+                      },
+                      {
+                        step_id: 2,
+                        name: "設定測試參數",
+                        description:
+                          "確認目標溫度、速率、時間等參數已正確設定。",
+                        optional: false,
+                      },
+                      {
+                        step_id: 3,
+                        name: "啟動並監控測試",
+                        description: "按下 RUN 鍵，監控溫度曲線是否正常。",
+                        optional: false,
+                      },
+                      {
+                        step_id: 4,
+                        name: "測試完成確認",
+                        description: "確認測試完成，設備無異常，拍照記錄。",
+                        optional: false,
+                      },
+                      {
+                        step_id: 5,
+                        name: "儲存測試紀錄",
+                        description: "點擊儲存按鈕，下載 CSV 測試報告。",
+                        optional: false,
+                      },
+                    ];
+                  }
+                  restoredSop = parsed;
+                } catch {
+                  /* JSON 解析失敗，忽略 */
+                }
+              }
+              // 若後端已無 active_sop_json（停止後），清空前端 activeSop
+              if (
+                !current.active_sop_json &&
+                prevDS.activeSop &&
+                !["RUNNING", "PAUSED"].includes(current.status)
+              ) {
+                restoredSop = null;
+              }
+
               next[id] = {
                 ...prevDS,
                 tick: newTick,
+                activeSop: restoredSop,
                 tempHistory:
                   newHistory.length > MAX_CHART_POINTS
                     ? newHistory.slice(-MAX_CHART_POINTS)

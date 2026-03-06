@@ -40,10 +40,14 @@ echo "🚀 啟動模擬器 (Simulator)..."
 SIM_PID=$!
 
 echo "🚀 啟動後端 API (FastAPI)..."
+# 強制釋放 port 8000（避免 make clean 後殘留程序）
+lsof -ti:8000 | xargs kill -9 2>/dev/null || true
+
 (cd backend && SERIAL_PORTS="$PTY_B" uvicorn app.main:app --reload --port 8000 --no-access-log) &
 BACK_PID=$!
 
 echo "🚀 啟動前端網頁 (Vite)..."
+lsof -ti:5173 | xargs kill -9 2>/dev/null || true
 (cd client && npm run dev) &
 CLIENT_PID=$!
 

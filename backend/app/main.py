@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import json
 import random
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -44,6 +45,7 @@ def _save_device_state(device_id: str, item: dict):
         state.running_sop_id = item.get("running_sop_id")
         state.running_sop_name = item.get("running_sop_name")
         state.standard_id = item.get("standard_id")
+        state.active_sop_json = item.get("active_sop_json")
         state.updated_at = datetime.datetime.now(datetime.timezone.utc)
         db.commit()
 
@@ -85,6 +87,7 @@ async def get_all_devices():
                 item.get("status", "OFFLINE"), item.get("running_sop_name", "")
             ),
             "timestamp": now,
+            "active_sop_json": item.get("active_sop_json"),
         }
         for device_id, item in app.state.AICM_CACHE.items()
     ]
@@ -144,6 +147,7 @@ async def emergency_stop(device_id: str):
             "status": "EMERGENCY",
             "running_sop_id": None,
             "running_sop_name": "🚨 緊急停止中 - 待確認安全",
+            "active_sop_json": None,
         }
     )
     _save_device_state(device_id, device)
@@ -171,6 +175,7 @@ async def normal_stop(device_id: str):
         {
             "status": "FINISHING",
             "running_sop_name": "系統自動降溫收尾中...",
+            "active_sop_json": None,
         }
     )
     _save_device_state(device_id, device)
@@ -302,6 +307,7 @@ async def startup_event():
                 "running_sop_name": s.running_sop_name or "STANDBY",
                 "running_sop_id": s.running_sop_id,
                 "standard_id": s.standard_id,
+                "active_sop_json": s.active_sop_json,
             }
             print(
                 f"🔄 [{device_id}] 恢復狀態：{restored_status}，溫度：{s.temperature}°C"
